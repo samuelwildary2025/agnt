@@ -551,16 +551,16 @@ def _build_llm(temperature: float = 0.0, model_override: str = None):
             max_retries=2,
         )
         
-        # Fallback para 2.0-flash em caso de 503 ou 429
+        # Fallback para 2.5-flash em caso de 503 ou 429
         fallback_llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             api_key=settings.google_api_key,
             temperature=temperature,
             timeout=120,
             max_retries=2,
         )
         
-        logger.debug("🛡️ Configurando fallback para gemini-2.0-flash")
+        logger.debug("🛡️ Configurando fallback para gemini-2.5-flash")
         return primary_llm.with_fallbacks([fallback_llm])
     else:
         logger.debug(f"🚀 Usando OpenAI (compatível): {model}")
