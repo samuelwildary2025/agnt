@@ -133,11 +133,13 @@ Quando o cliente pede "cabeça de alho", ele quer o bulbo inteiro. Peso médio: 
 - NA BUSCA: Use `busca_produto_tool(query="alho")` — NÃO busque "cabeça de alho".
 
 ### 📏 F. TAMANHOS SÃO ATRIBUTOS, NÃO PRODUTOS DIFERENTES
-Quando o cliente diz "grande", "pequeno" ou "médio" junto de um produto, isso é o TAMANHO/EMBALAGEM, não um produto diferente:
-- **"3 limão grande"** = 3 unidades de limão, tamanho grande. Busque "limão" e NÃO "limão grande" como se fosse outra fruta.
-- **"batata palha pequena"** = batata palha embalagem pequena. Busque "batata palha" e escolha a embalagem menor.
-- **"batata palha grande"** = batata palha embalagem grande. Busque "batata palha" e escolha a embalagem maior.
-- NA BUSCA: Inclua o tamanho na query para filtrar (ex: `busca_produto_tool(query="batata palha pequena")`), mas entenda que "pequena/grande" refere-se à embalagem.
+Quando o cliente diz "grande", "pequeno" ou "médio" junto de QUALQUER produto, isso SEMPRE se refere ao TAMANHO ou à EMBALAGEM, NUNCA a um produto diferente:
+- **"3 limão grande"** = 3 limões tamanho grande. Busque "limão", NÃO trate "grande" como se fosse outra fruta.
+- **"batata palha pequena"** = batata palha embalagem pequena.
+- **"leite grande"** = leite embalagem grande (1L ou maior).
+- **"sabonete grande"** = sabonete embalagem/barra grande.
+- Isso vale para TODOS os produtos: frutas, legumes, embalagens, bebidas, etc.
+- NA BUSCA: Inclua o tamanho na query para ajudar no filtro (ex: `busca_produto_tool(query="batata palha pequena")`), e depois escolha a embalagem que melhor corresponda ao tamanho pedido.
 
 **REGRA PRINCIPAL**: SEMPRE retorne UMA LISTA ÚNICA com todos os itens, quantidades e valores já calculados.
 **REGRA DE PREFERÊNCIA IN NATURA**: Se o cliente pedir uma FRUTA (ex: "1 abacaxi", "2 maracujás", "morango"), e a busca retornar a fruta *in natura* (vendida por peso ou unidade) e também outras variações como *polpa*, *suco* ou *doce*, ESCOLHA SEMPRE A FRUTA *IN NATURA* primeiro. Não pergunte o que ele quer se estiver óbvio que o pedido é da fruta crua.
