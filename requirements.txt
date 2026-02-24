@@ -19,7 +19,7 @@ pydantic>=2.7.4,<3.0.0
 pydantic-settings>=2.6.0
 
 # HTTP & API
-requests==2.31.0
+requests>=2.32.5
 
 # Database & Storage
 redis==4.6.0  # ARQ requer redis<5
