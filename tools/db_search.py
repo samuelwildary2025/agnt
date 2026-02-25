@@ -163,12 +163,9 @@ def _apply_term_translations(query: str) -> str:
     q_low = q.lower()
     tokens = q_low.split(" ")
 
+    # Reduzindo a remoção de preposições cruciais (como "de" em "creme de leite")
+    # Deixamos apenas artigos estritamente inúteis para FTS
     drop_tokens = {
-        "de",
-        "da",
-        "do",
-        "das",
-        "dos",
         "a",
         "o",
         "as",
@@ -200,10 +197,8 @@ def _apply_term_translations(query: str) -> str:
         if mk in joined:
             joined = joined.replace(mk, translations[mk])
     
-    # FASE 2: Substituições de palavra individual para tokens restantes
-    final_tokens = joined.split(" ")
-    replaced = [translations.get(w, w) for w in final_tokens if w]
-    out = " ".join(replaced).strip()
+    # FASE 2 Desativada: Substituições de palavra individual para tokens restantes (Fuzz/Trigram resolve naturalmente sem quebrar o contexto de 'creme de leite')
+    out = joined.strip()
     
     # FASE 3: Regra geral para Hortifruti -> adicionar "kg"
     # Se o cliente busca por uma fruta ou legume simples (ex: "maca", "banana", "cenoura")
@@ -291,7 +286,7 @@ def _tokenize_for_match(text: str) -> List[str]:
     return [t for t in tokens if t and t not in drop_tokens]
 
 
-def _score_match(query: str, name: str, category: str) -> float:
+def _score_match(query: str, name: str, category: str, db_rank: float = 0.0) -> float:
     q_tokens = _tokenize_for_match(_normalize_units_in_text(query))
     if not q_tokens:
         return 0.0
@@ -299,12 +294,25 @@ def _score_match(query: str, name: str, category: str) -> float:
     category_tokens = _tokenize_for_match(category)
     candidate_tokens = set(name_tokens + category_tokens)
     overlap = len(set(q_tokens) & candidate_tokens) / max(len(set(q_tokens)), 1)
+    
     q_norm = " ".join(q_tokens)
     name_norm = " ".join(name_tokens)
+    
     if not name_norm:
         return round(overlap, 4)
+        
     ratio = difflib.SequenceMatcher(None, q_norm, name_norm).ratio()
-    return round(0.6 * overlap + 0.4 * ratio, 4)
+    
+    # Se temos o rank_match da busca híbrida/trigram nativa do PostgreSQL, 
+    # ele se torna o peso principal da equação de similaridade, mitigando quedas por inversão de palavra
+    if db_rank > 0.0:
+        normalized_db_rank = min(db_rank, 1.2) / 1.2
+        # Ratio ganha 40% do peso, sendo fundamental para desempatar Doce de Leite vs Creme Leite Nestle
+        final_score = (0.4 * normalized_db_rank) + (0.4 * ratio) + (0.2 * overlap)
+    else:
+        final_score = (0.5 * ratio) + (0.5 * overlap)
+        
+    return round(final_score, 4)
 
 
 def _safe_float(v: Any, default: float = 0.0) -> float:
@@ -399,6 +407,10 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
 
         like_term = f"%{q}%"
         like_term_no_accents = f"%{q_no_accents}%"
+        
+        # Versão sem conectivos embutidos para ajudar o ILIKE onde o PG_TRGM perdoaria
+        q_clean_spaces = q.replace(" de ", " ").replace(" da ", " ").replace(" do ", " ")
+        like_term_clean_spaces = f"%{q_clean_spaces}%"
 
         def candidate_table_names(name: str) -> List[str]:
             base = (name or "").strip() or "produtos-sp-queiroz"
@@ -429,46 +441,59 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
                         sql.SQL(
                             """
                             WITH q AS (
-                                SELECT plainto_tsquery('simple', unaccent(%s)) AS tsq
+                                SELECT plainto_tsquery('simple', unaccent(%s)) AS tsq, plainto_tsquery('simple', unaccent(%s)) AS ts_clean
                             )
-                            SELECT id, nome, preco, estoque, unidade, categoria
+                            SELECT id, nome, preco, estoque, unidade, categoria,
+                            (
+                                0.60 * GREATEST(
+                                    ts_rank_cd(to_tsvector('simple', unaccent(coalesce(nome,'') || ' ' || coalesce(descricao,''))), q.tsq),
+                                    ts_rank_cd(to_tsvector('simple', unaccent(coalesce(nome,'') || ' ' || coalesce(descricao,''))), q.ts_clean)
+                                )
+                                + 0.40 * GREATEST(
+                                    word_similarity(unaccent(%s), unaccent(nome)),
+                                    word_similarity(unaccent(%s), unaccent(nome)),
+                                    word_similarity(unaccent(%s), unaccent(descricao)),
+                                    similarity(unaccent(%s), unaccent(nome)),
+                                    similarity(unaccent(%s), unaccent(nome)),
+                                    similarity(unaccent(%s), unaccent(descricao))
+                                )
+                            ) AS rank_match
                             FROM {table}
                             CROSS JOIN q
                             WHERE (
                                 to_tsvector('simple', unaccent(coalesce(nome,'') || ' ' || coalesce(descricao,''))) @@ q.tsq
+                                OR to_tsvector('simple', unaccent(coalesce(nome,'') || ' ' || coalesce(descricao,''))) @@ q.ts_clean
+                                OR unaccent(nome) ILIKE unaccent(%s)
                                 OR unaccent(nome) ILIKE unaccent(%s)
                                 OR unaccent(descricao) ILIKE unaccent(%s)
-                                OR word_similarity(unaccent(%s), unaccent(nome)) > 0.2
-                                OR word_similarity(unaccent(%s), unaccent(descricao)) > 0.2
-                                OR similarity(unaccent(nome), unaccent(%s)) > 0.2
-                                OR similarity(unaccent(descricao), unaccent(%s)) > 0.2
+                                OR word_similarity(unaccent(%s), unaccent(nome)) > 0.05
+                                OR word_similarity(unaccent(%s), unaccent(nome)) > 0.05
+                                OR word_similarity(unaccent(%s), unaccent(descricao)) > 0.05
+                                OR similarity(unaccent(%s), unaccent(nome)) > 0.05
+                                OR similarity(unaccent(%s), unaccent(nome)) > 0.05
+                                OR similarity(unaccent(%s), unaccent(descricao)) > 0.05
                             )
-                            ORDER BY (
-                                0.70 * ts_rank_cd(
-                                    to_tsvector('simple', unaccent(coalesce(nome,'') || ' ' || coalesce(descricao,''))),
-                                    q.tsq
-                                )
-                                + 0.30 * GREATEST(
-                                    word_similarity(unaccent(%s), unaccent(nome)),
-                                    word_similarity(unaccent(%s), unaccent(descricao)),
-                                    similarity(unaccent(nome), unaccent(%s)),
-                                    similarity(unaccent(descricao), unaccent(%s))
-                                )
-                            ) DESC
+                            ORDER BY rank_match DESC
                             LIMIT %s
                             """
                         ).format(table=table_ident),
                         (
                             raw_for_fts,
+                            q_clean_spaces,
+                            q,
+                            q_clean_spaces,
+                            q,
+                            q,
+                            q_clean_spaces,
+                            q,
                             like_term,
+                            like_term_clean_spaces,
                             like_term,
                             q,
+                            q_clean_spaces,
                             q,
                             q,
-                            q,
-                            q,
-                            q,
-                            q,
+                            q_clean_spaces,
                             q,
                             limit,
                         ),
@@ -502,7 +527,7 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
                     (
                         sql.SQL(
                             """
-                            SELECT id, nome, preco, estoque, unidade, categoria
+                            SELECT id, nome, preco, estoque, unidade, categoria, 0.0 AS rank_match
                             FROM {table}
                             WHERE unaccent(nome) ILIKE unaccent(%s)
                                OR unaccent(descricao) ILIKE unaccent(%s)
@@ -518,7 +543,7 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
                 (
                     sql.SQL(
                         """
-                        SELECT id, nome, preco, estoque, unidade, categoria
+                        SELECT id, nome, preco, estoque, unidade, categoria, 0.0 AS rank_match
                         FROM {table}
                         WHERE nome ILIKE %s
                            OR descricao ILIKE %s
@@ -536,7 +561,7 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
                 (
                     sql.SQL(
                         """
-                        SELECT id, nome, preco, estoque, unidade, categoria
+                        SELECT id, nome, preco, estoque, unidade, categoria, 0.0 AS rank_match
                         FROM {table}
                         WHERE nome ILIKE %s
                            OR nome ILIKE %s
@@ -551,6 +576,7 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
                 try:
                     cursor.execute(query_sql, params)
                     results = cursor.fetchall() or []
+                    # logger.info(f"DB retornou {len(results)} para {q}, rank_match: {results[0].get('rank_match', 'N/A') if results else 'N/A'}")
                     last_error = None
                     break
                 except Exception as e:
@@ -576,9 +602,13 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
 
         if results:
             for r in results:
-                score = _score_match(q, r.get("nome") or "", r.get("categoria") or "")
+                # O banco pode ou não trazer a chave 'rank_match' dependendo da query de fallback usada
+                db_rank = _safe_float(r.get("rank_match"), 0.0)
+                score = _score_match(q, r.get("nome") or "", r.get("categoria") or "", db_rank=db_rank)
                 r["match_score"] = score
-                r["match_ok"] = score >= 0.55
+                
+                # Definir 0.50 como limite mais complacente já que o PostgreSQL filtrou o joio do trigo
+                r["match_ok"] = score >= 0.50
             results = sorted(results, key=lambda r: r.get("match_score", 0.0), reverse=True)
 
             # PRIORIZAÇÃO 1: Frango → abatido sempre primeiro
