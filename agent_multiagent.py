@@ -644,96 +644,11 @@ def vendedor_node(state: AgentState) -> dict:
         "recursion_limit": 25
     }
     
-    def _check_hallucination(agent_result: dict, agent_response: str) -> tuple[bool, str, set]:
-        messages_local = agent_result.get("messages", []) if isinstance(agent_result, dict) else []
-        tools_called_local = set()
-        for msg in messages_local:
-            if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
-                for call in msg.tool_calls:
-                    tools_called_local.add(call["name"])
-
-        response_lower_local = (agent_response if isinstance(agent_response, str) else str(agent_response or "")).lower()
-        hallucination_detected_local = False
-        hallucination_reason_local = ""
-
-        # 1. REMOVIDO: A regra de 'add_item_tool' não faz mais sentido no modo Sem Carrinho.
-
-        # 2. Disse "encontrei" sem chamar busca_produto_tool
-        if "encontrei" in response_lower_local:
-            if "busca_produto_tool" not in tools_called_local:
-                hallucination_detected_local = True
-                hallucination_reason_local = "disse 'encontrei' sem chamar busca_produto_tool"
-
-        # 3. Mencionou preço (R$) sem buscar no banco primeiro
-        if not hallucination_detected_local:
-            import re as _re
-            # Regex para capturar R$ XX,XX ou "50 reais"
-            price_mentions = _re.findall(r"(?:r\$\s*|(?:\d+)\s+reais)\d+(?:[,\.]\d{2})?", response_lower_local)
-            
-            # Se mencionou preço, DEVEMOS ter contexto de busca ou de fechamento
-            if price_mentions:
-                # Contextos permitidos para falar de preço SEM buscar produto:
-                # 1. Está fechando o pedido (calcular total)
-                is_checkout = "calcular_total_tool" in tools_called_local or "finalizar_pedido_tool" in tools_called_local
-                # 2. Usuário falou de pagamento/troco (contexto da mensagem atual)
-            # PEGAR A ÚLTIMA MENSAGEM DO TIPO HUMANMESSAGE PARA GARANTIR
-            user_msgs = [m for m in state["messages"] if isinstance(m, HumanMessage)]
-            user_msg_lower = (user_msgs[-1].content or "").lower() if user_msgs else ""
-            
-            logger.info(f"🔍 [HALLUCINATION_CHECK] User Msg: '{user_msg_lower}'")
-
-            payment_terms = ["troco", "pagamento", "pix", "cartao", "cartão", "dinheiro", "nota", "card", "cash"]
-            is_payment_context = any(t in user_msg_lower for t in payment_terms)
-            
-            # Se for contexto de pagamento, LOGAR que dispensou checagem
-            if is_payment_context:
-                logger.debug("💰 Contexto de pagamento detectado. Dispensando verificação de preço.")
-                
-                # Se NÃO for checkout E NÃO for contexto de pagamento, aí sim exige busca
-                if not is_checkout and not is_payment_context:
-                    if "busca_produto_tool" not in tools_called_local and "add_item_tool" not in tools_called_local:
-                        hallucination_detected_local = True
-                        hallucination_reason_local = f"citou preços ({price_mentions[:3]}) sem consultar busca_produto_tool (e não é fechamento)"
-
-        return hallucination_detected_local, hallucination_reason_local, tools_called_local
-
-    tools_called_with_messages = []
-    
     result = agent.invoke({"messages": state["messages"]}, config)
     response = _extract_response(result)
 
-    hallucination_detected, hallucination_reason, tools_called = _check_hallucination(result, response)
-    if hallucination_detected:
-        logger.warning(f"⚠️ ALUCINAÇÃO DETECTADA: {hallucination_reason}. Tools usadas: {tools_called}")
-
-        # Montar retry com o motivo ESPECÍFICO do erro
-        retry_instruction = SystemMessage(
-            content=(
-                f"RETRY INTERNO (não mostrar ao cliente): sua última resposta foi REJEITADA.\n"
-                f"MOTIVO: {hallucination_reason}\n"
-                f"Tools que você chamou: {', '.join(tools_called) if tools_called else 'NENHUMA'}\n\n"
-                f"CORRIJA seguindo estas etapas OBRIGATÓRIAS:\n"
-                f"1. Se o cliente pediu produtos, chame busca_produto_tool para CADA produto.\n"
-                f"2. Analise os resultados da busca (preço, estoque, match_ok).\n"
-                f"3. Chame add_item_tool para CADA produto encontrado, usando o preço RETORNADO pela busca.\n"
-                f"4. SÓ DEPOIS de chamar add_item_tool, responda ao cliente confirmando.\n"
-                f"5. NUNCA diga 'adicionei' se não chamou add_item_tool.\n"
-                f"6. NUNCA cite preços se não chamou busca_produto_tool.\n\n"
-                f"Processe o pedido do cliente AGORA chamando as ferramentas corretas."
-            )
-        )
-        retry_messages = list(state["messages"]) + [retry_instruction]
-        retry_result = agent.invoke({"messages": retry_messages}, config)
-        retry_response = _extract_response(retry_result)
-        retry_hallucination, retry_reason, retry_tools = _check_hallucination(retry_result, retry_response)
-        if not retry_hallucination and retry_response:
-            result = retry_result
-            response = retry_response
-        else:
-            logger.warning(f"⚠️ ALUCINAÇÃO (RETRY) DETECTADA: {retry_reason}. Tools: {retry_tools}")
-            response = "Desculpe, tive um problema técnico. Pode me dizer novamente o que você gostaria?"
-
     logger.info(f"👩‍💼 [VENDEDOR] Resposta: {response[:100]}...")
+
     
     return {
         "final_response": response,
