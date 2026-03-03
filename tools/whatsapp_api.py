@@ -249,6 +249,9 @@ class WhatsAppAPI:
                     # Formato direto: { "base64": "...", "mimetype": "..." }
                     if "base64" in data:
                         return data
+                    # Novo formato UAZAPI: { "base64Data": "..." }
+                    if "base64Data" in data:
+                        return {"base64": data["base64Data"], "mimetype": data.get("mimetype", "")}
                 
                 logger.warning(f"⚠️ Formato de resposta inesperado: {str(data)[:200]}")
                 return None
