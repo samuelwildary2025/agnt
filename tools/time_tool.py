@@ -12,12 +12,12 @@ from config.settings import settings
 logger = setup_logger(__name__)
 
 
-def get_current_time(timezone: str = "America/Sao_Paulo") -> str:
+def get_current_time(timezone: str = "America/Fortaleza") -> str:
     """
     Retorna a data e hora atual no fuso horário especificado.
     
     Args:
-        timezone: Fuso horário (padrão: America/Sao_Paulo)
+        timezone: Fuso horário (padrão: America/Fortaleza)
     
     Returns:
         String formatada com data e hora
