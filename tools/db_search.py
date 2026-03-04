@@ -178,7 +178,7 @@ def _apply_term_translations(query: str) -> str:
     cleaned_tokens = [t for t in tokens if t and t not in drop_tokens]
 
     content_tokens = [
-        t for t in cleaned_tokens if t and not re.fullmatch(r"\d+(?:[\.,]\d+)?x?", t)
+        t for t in cleaned_tokens if t and (t.isdigit() or not re.fullmatch(r"\d+(?:[\.,]\d+)?x?", t))
     ]
     if len(content_tokens) == 1:
         t = content_tokens[0]
@@ -189,15 +189,19 @@ def _apply_term_translations(query: str) -> str:
     if not translations:
         return " ".join(cleaned_tokens).strip() or q
 
-    # FASE 1: Substituições multi-palavra (ex: "frango inteiro" → "frango abatido")
-    # Checar pares e trios de tokens contra o dicionário
-    multi_keys = {k for k in translations if " " in k}
+    # FASE 1 e 2: Substituições de tokens (usando regex para respeitar limites de palavras)
+    # Isso garante que "miojo" vire "macarrao instantaneo", mas "sal" não substitua dentro de "salsicha"
+    keys = sorted(translations.keys(), key=len, reverse=True)
     joined = " ".join(cleaned_tokens)
-    for mk in sorted(multi_keys, key=len, reverse=True):  # mais longo primeiro
-        if mk in joined:
+    for mk in keys:
+        if " " in mk:
+            # Substituição normal para multiplas palavras
             joined = joined.replace(mk, translations[mk])
+        else:
+            # Para palavra única, usa regex boundary
+            pattern = r'\b' + re.escape(mk) + r'\b'
+            joined = re.sub(pattern, translations[mk], joined)
     
-    # FASE 2 Desativada: Substituições de palavra individual para tokens restantes (Fuzz/Trigram resolve naturalmente sem quebrar o contexto de 'creme de leite')
     out = joined.strip()
     
     # FASE 3: Regra geral para Hortifruti -> adicionar "kg"
