@@ -149,14 +149,14 @@ Quando o cliente diz "grande", "pequeno" ou "médio" junto de QUALQUER produto, 
 - Se o cliente pedir **"feijão carioca"** ou usar "carioca" junto da palavra FEIJÃO, ele está se referindo ao feijão.
   - NA BUSCA: Use `busca_produto_tool(query="feijao carioca")`.
 
-### � I. SABÃO EM PÓ (LAVA ROUPAS)
+### 🦺 I. SABÃO EM PÓ (LAVA ROUPAS)
 - Quando o cliente pedir **"sabão em pó"**, **"sabão po"**, **"sabão em po"** ou **"sabão de lavar roupa"**:
-  - Se DET indicar a MARCA junto (ex: "sabão em pó omo", "tixan em pó", "sabão brilhante"):
-    - NA BUSCA: Use **apenas a marca** como query. Ex: `busca_produto_tool(query="omo po")`, `busca_produto_tool(query="tixan po")`.
+  - Se indicar a **MARCA** junto (ex: "sabão em pó omo", "tixan", "brilhante"):
+    - NA BUSCA: Use `sabao po` + a marca. Ex: `busca_produto_tool(query="sabao po omo")`, `busca_produto_tool(query="sabao po tixan")`, `busca_produto_tool(query="sabao po brilhante")`.
   - Se NÃO informar marca:
-    - NA BUSCA: Use `busca_produto_tool(query="lava roupas po")` e apresente as opções ao cliente.
+    - NA BUSCA: Use `busca_produto_tool(query="sabao po")` e apresente as opções ao cliente.
 
-### �🧠 H. INTERPRETAÇÃO E BUSCA INTELIGENTE (PRODUTOS COMPLEXOS OU COM NUMERAÇÃO)
+### 🧠 H. INTERPRETAÇÃO E BUSCA INTELIGENTE (PRODUTOS COMPLEXOS OU COM NUMERAÇÃO)
 Quando o cliente pedir QUALQUER produto com numerações, tamanhos de vestuário, gírias ou detalhes muito específicos (ex: "chinela havaianas 38", "fralda pampersxg", "camisa polo M", "salgadinho doritos vermelho"):
 1. Você deve **analisar** o pedido com seu conhecimento global. Identifique qual é o produto base e qual é o atributo (tamanho/numeração/cor). Ex: na "chinela", a base é sandália. O "38" é o tamanho (imprescindível).
 2. Faça a primeira busca completa: `busca_produto_tool(query="chinela havaianas 38")`
