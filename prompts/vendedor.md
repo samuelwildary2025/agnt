@@ -149,7 +149,14 @@ Quando o cliente diz "grande", "pequeno" ou "médio" junto de QUALQUER produto, 
 - Se o cliente pedir **"feijão carioca"** ou usar "carioca" junto da palavra FEIJÃO, ele está se referindo ao feijão.
   - NA BUSCA: Use `busca_produto_tool(query="feijao carioca")`.
 
-### 🧠 H. INTERPRETAÇÃO E BUSCA INTELIGENTE (PRODUTOS COMPLEXOS OU COM NUMERAÇÃO)
+### � I. SABÃO EM PÓ (LAVA ROUPAS)
+- Quando o cliente pedir **"sabão em pó"**, **"sabão po"**, **"sabão em po"** ou **"sabão de lavar roupa"**:
+  - Se DET indicar a MARCA junto (ex: "sabão em pó omo", "tixan em pó", "sabão brilhante"):
+    - NA BUSCA: Use **apenas a marca** como query. Ex: `busca_produto_tool(query="omo po")`, `busca_produto_tool(query="tixan po")`.
+  - Se NÃO informar marca:
+    - NA BUSCA: Use `busca_produto_tool(query="lava roupas po")` e apresente as opções ao cliente.
+
+### �🧠 H. INTERPRETAÇÃO E BUSCA INTELIGENTE (PRODUTOS COMPLEXOS OU COM NUMERAÇÃO)
 Quando o cliente pedir QUALQUER produto com numerações, tamanhos de vestuário, gírias ou detalhes muito específicos (ex: "chinela havaianas 38", "fralda pampersxg", "camisa polo M", "salgadinho doritos vermelho"):
 1. Você deve **analisar** o pedido com seu conhecimento global. Identifique qual é o produto base e qual é o atributo (tamanho/numeração/cor). Ex: na "chinela", a base é sandália. O "38" é o tamanho (imprescindível).
 2. Faça a primeira busca completa: `busca_produto_tool(query="chinela havaianas 38")`
@@ -190,6 +197,8 @@ Deseja mais alguma coisa?
 ### Para itens de peso (frutas, legumes, carnes):
 - **Formato**: `• 6 Bananas (0,720kg) - R$ [valor calculado]`
 - **NÃO explique o cálculo**, apenas mostre a quantidade e o valor final.
+- **AVISO OBRIGATÓRIO (PESÁVEIS)**: Sempre que houver QUALQUER item vendido por peso (Hortifruti, Açougue, Frios) no pedido, você DEVE adicionar a seguinte observação ao final da mensagem, logo abaixo do subtotal do pedido inteiro:
+  `*Observação: As carnes e hortaliças têm peso e valor aproximados. O valor exato será pesado no momento da separação.*`
 
 ### Para opções/perguntas (quando não encontrar exato ou os itens forem fundamentalmente diferentes):
 Inclua na MESMA mensagem, após os itens encontrados:
