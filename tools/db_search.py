@@ -204,6 +204,7 @@ def _apply_term_translations(query: str) -> str:
     # Isso garante que "miojo" vire "macarrao instantaneo", mas "sal" não substitua dentro de "salsicha"
     keys = sorted(translations.keys(), key=len, reverse=True)
     joined = " ".join(cleaned_tokens)
+
     for mk in keys:
         if " " in mk:
             # Substituição normal para multiplas palavras
@@ -247,7 +248,8 @@ def _apply_term_translations(query: str) -> str:
     
     for w in words:
         w_clean = _strip_accents(w.lower())
-        if len(w_clean) > 3 and w_clean.endswith("s"):
+        # Não mexer em palavras que terminam em "es" (como frances, portugues)
+        if len(w_clean) > 3 and w_clean.endswith("s") and not w_clean.endswith("es"):
             # Remover 's' final do plural na query (mantendo os acentos originais se existirem)
             corrected_words.append(w[:-1])
             out_no_accents = out_no_accents.replace(w_clean, w_clean[:-1])
