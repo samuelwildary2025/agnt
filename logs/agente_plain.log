@@ -3290,3 +3290,135 @@ During task with name 'orchestrator' and id 'c896b902-0241-ea22-5be7-e32ad66656d
 2026-02-24 19:41:37 - tools.db_search - INFO - ⬆️ Priorização Horti: 1 produto(s) KG movido(s) para o topo
 2026-02-24 19:41:37 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
 2026-02-24 19:41:37 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:14:29 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:14:30 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:14:30 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:15:01 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:15:02 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:15:02 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:15:11 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:15:12 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:15:12 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:15:13 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:15:13 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:15:13 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:15:21 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:15:22 - tools.db_search - INFO - ⬆️ Priorização: 'creme' movido para o topo da busca 'creme leite integral nestle'
+2026-02-24 21:15:22 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:15:22 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:15:30 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:15:30 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:15:30 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:32:25 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:33:47 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:33:47 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:33:47 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:34:13 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:34:14 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:34:14 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:34:49 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:34:50 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:34:50 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:35:16 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:35:17 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:35:17 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:35:33 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:36:03 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:36:04 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:36:04 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:36:41 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:36:42 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:36:42 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:37:11 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:37:12 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:37:12 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:37:21 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:38:09 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:38:09 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:38:09 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:38:35 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:38:35 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:38:35 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:39:12 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:39:13 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:39:13 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:39:46 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:39:46 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:39:46 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:39:57 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:40:09 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:40:38 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:40:38 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:40:38 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:41:14 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:41:14 - tools.redis_tools - ERROR - Erro ao conectar ao Redis: Error 8 connecting to projeto_queiroz_redis_agente:6379. nodename nor servname provided, or not known.
+2026-02-24 21:41:14 - tools.redis_tools - WARNING - [fallback] Sugestões não persistidas (Redis indisponível) para 5511999999999
+2026-02-24 21:41:31 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-02-24 21:41:31 - tools.db_search - INFO - ⬆️ Priorização Horti: 3 produto(s) KG movido(s) para o topo
+2026-02-24 21:41:32 - tools.db_search - INFO - ⬆️ Priorização Horti: 3 produto(s) KG movido(s) para o topo
+2026-03-03 15:45:57 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-03 15:47:11 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-03 15:47:30 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-03 15:47:31 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-03 15:47:33 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-03 15:48:07 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-03 15:49:19 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 09:24:03 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 09:24:34 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 09:25:01 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 09:25:29 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 09:25:30 - tools.db_search - INFO - ⬆️ Priorização Horti: 1 produto(s) KG movido(s) para o topo
+2026-03-04 09:25:58 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:35:05 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:36:22 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:36:24 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:36:54 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:37:09 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:37:19 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:43:00 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:49:48 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:50:19 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:54:18 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 22:54:53 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:03:49 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:03:50 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:03:52 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:03:54 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:04:06 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:04:14 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:04:30 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:04:48 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:05:04 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:05:16 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:05:30 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:05:52 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:05:54 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:06:20 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:06:34 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:06:47 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:07:02 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:07:44 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:07:45 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:25:13 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:25:15 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:25:17 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:25:18 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:25:21 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:25:21 - tools.db_search - INFO - ⬆️ Priorização Horti: 2 produto(s) KG movido(s) para o topo
+2026-03-04 23:25:23 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:26:05 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:26:22 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:26:54 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:28:17 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:28:19 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:28:21 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:28:22 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:30:01 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-04 23:30:02 - tools.db_search - INFO - ⬆️ Priorização Horti: 3 produto(s) KG movido(s) para o topo
+2026-03-05 07:57:11 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-05 07:57:12 - tools.db_search - INFO - ⬆️ Priorização Horti: 4 produto(s) KG movido(s) para o topo
+2026-03-05 07:57:58 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-05 07:57:59 - tools.db_search - INFO - ⬆️ Priorização Horti: 4 produto(s) KG movido(s) para o topo
+2026-03-05 07:59:04 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-05 07:59:05 - tools.db_search - INFO - ⬆️ Priorização Horti: 4 produto(s) KG movido(s) para o topo
+2026-03-05 07:59:10 - tools.db_search - INFO - ⬆️ Priorização: 'abatido' movido para o topo da busca 'file de peito de frango frango abatido'
