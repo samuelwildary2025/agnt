@@ -123,8 +123,19 @@ def _text_has_unit(text: str, unit_token: str) -> bool:
         return False
     num = re.escape(m.group(1))
     unit = re.escape(m.group(2))
+    
+    # Busca exata do tipo "1kg"
     pattern = re.compile(rf"\b{num}\s*{unit}\b", re.IGNORECASE)
-    return bool(pattern.search(text))
+    if pattern.search(text):
+        return True
+        
+    # Se for uma unidade de peso (kg ou g), produtos a granel (que terminam em 'kg')
+    # também devem ser considerados válidos.
+    if unit in ('kg', 'g'):
+        if re.search(r'\bkg\b', text.strip(), re.IGNORECASE):
+            return True
+            
+    return False
 
 
 def _normalize_query_text(text: str) -> str:
