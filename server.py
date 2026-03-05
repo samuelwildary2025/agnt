@@ -689,6 +689,10 @@ def _extract_incoming(payload: Dict[str, Any]) -> Dict[str, Any]:
             
         mensagem_texto = f"[Áudio]: {trans}" if trans else "[Áudio inaudível]"
             
+    elif message_type == "image" and from_me:
+        # Imagem do ATENDENTE — não analisar, só registrar.
+        # Evita 30s de timeout bloqueando o servidor e causando duplicações de webhook.
+        mensagem_texto = mensagem_texto or "[Imagem do atendente]"
     elif message_type == "image":
         caption = mensagem_texto or ""
         analysis = None
