@@ -143,6 +143,17 @@ def transcribe_audio(message_id: str = None, base64_data: str = None, mimetype: 
     
     # 2. Fallback: Tentar baixar via API
     if audio_bytes is None and message_id:
+        # Dedup guard via Redis: se já tentamos baixar esse audio e falhou, não tentamos de novo
+        dedup_key = f"audio_tried:{message_id}"
+        try:
+            from tools.redis_tools import get_redis_client
+            _rc = get_redis_client()
+            if _rc and _rc.get(dedup_key):
+                logger.warning(f"⚠️ Áudio {message_id} já foi tentado antes e falhou. Ignorando retry.")
+                return None
+        except Exception:
+            pass
+
         logger.info(f"🎤 Tentando baixar áudio via API: {message_id}")
         media_data = whatsapp.get_media_base64(message_id)
         
@@ -154,6 +165,14 @@ def transcribe_audio(message_id: str = None, base64_data: str = None, mimetype: 
             except Exception as e:
                 logger.error(f"Erro ao decodificar Base64 da API: {e}")
         else:
+            # Marcar no Redis que essa mensagem já foi tentada (TTL 5 minutos)
+            try:
+                from tools.redis_tools import get_redis_client
+                _rc = get_redis_client()
+                if _rc:
+                    _rc.setex(dedup_key, 300, "1")
+            except Exception:
+                pass
             logger.warning(f"⚠️ API não retornou Base64 para: {message_id}")
     
     # Se não conseguiu obter o áudio de nenhuma forma

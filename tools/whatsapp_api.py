@@ -236,7 +236,7 @@ class WhatsAppAPI:
         logger.info(f"🖼️ Baixando mídia: {message_id}")
         
         try:
-            resp = requests.post(url, headers=self._get_headers(), json=payload, timeout=30)
+            resp = requests.post(url, headers=self._get_headers(), json=payload, timeout=10)
             
             if resp.status_code == 200:
                 data = resp.json()
