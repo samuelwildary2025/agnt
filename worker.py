@@ -6,7 +6,7 @@ import asyncio
 import time
 import random
 import re
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Union, List
 from arq import create_pool
 from arq.connections import RedisSettings
 from urllib.parse import urlparse
@@ -20,7 +20,12 @@ logger = setup_logger(__name__)
 whatsapp = WhatsAppAPI()
 
 
-async def process_message(ctx: Dict[str, Any], telefone: str, mensagem: str, message_id: str = None) -> str:
+async def process_message(
+    ctx: Dict[str, Any],
+    telefone: str,
+    mensagem: str,
+    message_id: Optional[Union[str, List[str]]] = None
+) -> str:
     """
     Processa uma mensagem do WhatsApp (função executada pelo worker ARQ).
     
@@ -59,41 +64,44 @@ async def process_message(ctx: Dict[str, Any], telefone: str, mensagem: str, mes
         # 3. Começar a "Digitar"
         whatsapp.send_presence(num, "composing")
         
-        # 3.5 Processar mídia se for placeholder ([MEDIA:TYPE:ID])
-        if mensagem.startswith("[MEDIA:"):
+        # 3.5 Processar mídia se houver placeholder ([MEDIA:TYPE:ID])
+        media_match = re.search(r"\[MEDIA:(IMAGE|AUDIO|DOCUMENT):([^\]]+)\]", mensagem, re.IGNORECASE)
+        if media_match:
             try:
-                # Parse: [MEDIA:IMAGE:3EB08C4C6042...]
-                parts = mensagem.strip("[]").split(":")
-                media_type = parts[1].lower() if len(parts) > 1 else "image"
-                media_id = parts[2] if len(parts) > 2 else None
+                media_type = (media_match.group(1) or "image").lower()
+                media_id = media_match.group(2)
                 
                 if media_id:
                     logger.info(f"📷 Processando mídia {media_type}: {media_id}")
+                    replacement_text = ""
                     
                     if media_type == "image":
                         # Importar função de análise do server.py
                         from server import analyze_image
                         analysis = analyze_image(media_id, None)
                         if analysis:
-                            mensagem = f"[Análise da imagem]: {analysis}"
+                            replacement_text = f"[Análise da imagem]: {analysis}"
                             logger.info(f"✅ Imagem analisada: {analysis[:50]}...")
                         else:
-                            mensagem = "[Imagem recebida, mas não foi possível analisar]"
+                            replacement_text = "[Imagem recebida, mas não foi possível analisar]"
                     elif media_type == "audio":
                         from server import transcribe_audio
                         transcription = transcribe_audio(media_id)
                         if transcription:
-                            mensagem = f"[Áudio]: {transcription}"
+                            replacement_text = f"[Áudio]: {transcription}"
                             logger.info(f"✅ Áudio transcrito: {transcription[:50]}...")
                         else:
-                            mensagem = "[Áudio recebido, mas não foi possível transcrever]"
+                            replacement_text = "[Áudio recebido, mas não foi possível transcrever]"
                     elif media_type == "document":
                         from server import process_pdf
-                        pdf_text = process_pdf(media_id)
-                        if pdf_text:
-                            mensagem = f"[Conteúdo PDF]: {pdf_text[:1200]}"
+                        extracted_text, _ = process_pdf(media_id)
+                        if extracted_text:
+                            replacement_text = f"[Conteúdo PDF]: {extracted_text[:1200]}"
                         else:
-                            mensagem = "[Documento/PDF recebido]"
+                            replacement_text = "[Documento/PDF recebido]"
+
+                    if replacement_text:
+                        mensagem = mensagem.replace(media_match.group(0), replacement_text, 1)
             except Exception as e:
                 logger.error(f"❌ Erro ao processar mídia: {e}")
                 mensagem = "[Mídia recebida, erro ao processar]"

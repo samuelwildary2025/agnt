@@ -189,13 +189,15 @@ def pop_all_messages(telefone: str) -> Tuple[List[str], Optional[str]]:
     else:
         key = buffer_key(telefone)
         try:
-            pipe = client.pipeline()
-            pipe.lrange(key, 0, -1)
-            pipe.delete(key)
-            result = pipe.execute()
-            msgs_raw = result[0] if result else []
+            # Script LUA para garantir atomicidade total de "Lê tudo e Deleta"
+            lua_pop = """
+            local msgs = redis.call('LRANGE', KEYS[1], 0, -1)
+            redis.call('DEL', KEYS[1])
+            return msgs
+            """
+            msgs_raw = client.eval(lua_pop, 1, key) or []
         except redis.exceptions.RedisError as e:
-            logger.error(f"Erro ao consumir buffer: {e}")
+            logger.error(f"Erro ao consumir buffer (LUA): {e}")
             return [], None
 
     mids = []
@@ -219,6 +221,82 @@ def pop_all_messages(telefone: str) -> Tuple[List[str], Optional[str]]:
             
     logger.info(f"Buffer consumido para {telefone}: {len(texts)} mensagens. MIDs: {len(mids)}")
     return texts, mids
+
+
+# ============================================
+# Deduplicação de Webhooks
+# ============================================
+
+def check_and_mark_message_processed(message_id: str, ttl: int = 300) -> bool:
+    """
+    Verifica se uma mensagem já foi processada (deduplicação) usando Redis SET NX.
+    Retorna True se a mensagem é NOVA (primeira vez), False se for DUPLICADA.
+    
+    Args:
+        message_id: ID único da mensagem vindo do webhook
+        ttl: Tempo de expiração do registro (default 5 min)
+    """
+    if not message_id:
+        return True # Sem ID não podemos dedulicar, processa normalmente
+        
+    client = get_redis_client()
+    if client is None:
+        return True # Sem Redis, assume que é nova
+        
+    try:
+        key = f"processed_msg:{message_id}"
+        # Tenta definir a chave apenas se ela NÃO existir (NX)
+        # Se retornar True, a chave foi criada agora (primeira vez)
+        is_new = client.set(key, "1", nx=True, ex=ttl)
+        
+        if not is_new:
+            logger.warning(f"🚫 Mensagem duplicada ignorada (Webhook): {message_id}")
+            
+        return bool(is_new)
+    except Exception as e:
+        logger.error(f"Erro ao verificar deduplicação: {e}")
+        return True
+
+
+# ============================================
+# Lock Global para Buffer (Prevenção de Race Conditions)
+# ============================================
+
+def acquire_buffer_session_lock(telefone: str, ex_seconds: int = 180) -> bool:
+    """
+    Tenta marcar que este telefone já possui uma sessão de buffer ativa.
+    Funciona como um semáforo distribuído.
+    """
+    client = get_redis_client()
+    if client is None: return True
+    
+    try:
+        key = f"buf_session_active:{normalize_phone(telefone)}"
+        return bool(client.set(key, "1", nx=True, ex=ex_seconds))
+    except:
+        return True
+
+def refresh_buffer_session_lock(telefone: str, ex_seconds: int = 180) -> bool:
+    """
+    Renova o TTL da sessão ativa de buffer para evitar expiração durante processamento.
+    """
+    client = get_redis_client()
+    if client is None:
+        return True
+    try:
+        key = f"buf_session_active:{normalize_phone(telefone)}"
+        return bool(client.expire(key, ex_seconds))
+    except Exception:
+        return False
+
+def release_buffer_session_lock(telefone: str) -> None:
+    """Remove a marcação de sessão de buffer ativa."""
+    client = get_redis_client()
+    if client is None: return
+    try:
+        client.delete(f"buf_session_active:{normalize_phone(telefone)}")
+    except:
+        pass
 
 
 # ============================================

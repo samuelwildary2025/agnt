@@ -42,6 +42,10 @@ from tools.redis_tools import (
     refresh_session_ttl,
     get_order_context,
     clear_cart,
+    check_and_mark_message_processed,
+    acquire_buffer_session_lock,
+    refresh_buffer_session_lock,
+    release_buffer_session_lock,
 )
 
 logger = setup_logger(__name__)
@@ -1069,8 +1073,8 @@ async def _enqueue_process_job(telefone: str, mensagem: str, message_id: str = N
     global arq_pool
     if not arq_pool:
         logger.error("❌ ARQ Pool não inicializado! Usando fallback síncrono.")
-        # Fallback: processar síncrono (não ideal mas evita crash)
-        process_async(telefone, mensagem, message_id)
+        # Fallback em thread para não bloquear o event loop do FastAPI
+        await asyncio.to_thread(process_async, telefone, mensagem, message_id)
         return
     
     try:
@@ -1083,8 +1087,8 @@ async def _enqueue_process_job(telefone: str, mensagem: str, message_id: str = N
         logger.info(f"🎉 Job enfileirado: {job.job_id} | Cliente: {telefone}")
     except Exception as e:
         logger.error(f"❌ Erro ao enfileirar job: {e}")
-        # Fallback para não perder mensagem
-        process_async(telefone, mensagem, message_id)
+        # Fallback em thread para não perder mensagem sem bloquear o loop
+        await asyncio.to_thread(process_async, telefone, mensagem, message_id)
 
 async def _enqueue_buffer_job(telefone: str):
     """
@@ -1096,8 +1100,10 @@ async def _enqueue_buffer_job(telefone: str):
     """
     try:
         n = re.sub(r"\\D","",telefone)
+        refresh_buffer_session_lock(n)
         
         while True:
+            refresh_buffer_session_lock(n)
             prev = get_buffer_length(n)
             if prev == 0:
                 break
@@ -1106,6 +1112,7 @@ async def _enqueue_buffer_job(telefone: str):
             # Esperar por mais mensagens (3 ciclos de 5s)
             while stall < 3:
                 await asyncio.sleep(5)
+                refresh_buffer_session_lock(n)
                 curr = get_buffer_length(n)
                 if curr > prev: 
                     prev, stall = curr, 0
@@ -1130,7 +1137,8 @@ async def _enqueue_buffer_job(telefone: str):
     except Exception as e:
         logger.error(f"Erro no buffer_loop async: {e}")
     finally:
-        buffer_sessions.pop(re.sub(r"\\D","",telefone), None)
+        # MUDANÇA: Limpar trava no Redis em vez do dicionário local
+        release_buffer_session_lock(telefone)
 
 # --- Endpoints ---
 @app.get("/")
@@ -1352,6 +1360,13 @@ async def webhook(req: Request, tasks: BackgroundTasks):
         if not tel or (not txt and msg_type == "text" and not media_url): 
             logger.warning(f"⚠️ IGNORED | Tel: {tel} | Txt: {txt} | Type: {msg_type} | ID: {msg_id}")
             return JSONResponse(content={"status":"ignored"})
+            
+        # =============================================
+        # DEDUPLICAÇÃO DE WEBHOOK (REDIS SET NX)
+        # Previne processar a mesma mensagem duas vezes
+        # =============================================
+        if not check_and_mark_message_processed(msg_id):
+             return JSONResponse(content={"status":"duplicate"})
         
         # Se for mídia sem texto, cria um placeholder para não perder no buffer
         if msg_type in ["image", "audio", "document"] and not txt and msg_id:
@@ -1383,9 +1398,9 @@ async def webhook(req: Request, tasks: BackgroundTasks):
         except: pass
 
         if push_message_to_buffer(num, txt, message_id=msg_id):
-            if not buffer_sessions.get(num):
-                buffer_sessions[num] = True
-                # MUDANÇA: Em vez de Thread, enfileira job ARQ
+            # MUDANÇA: Usar trava no Redis (distributed) em vez de dict local
+            if acquire_buffer_session_lock(num):
+                # Se conseguiu o lock, inicia o task de buffer
                 asyncio.create_task(_enqueue_buffer_job(num))
         else:
             # Mensagem única (sem buffer) - enfileira diretamente

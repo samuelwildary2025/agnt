@@ -36,9 +36,7 @@ def get_auth_headers() -> Dict[str, str]:
     if token and not token.strip().lower().startswith("bearer"):
         token = f"Bearer {token.strip()}"
     
-    # DEBUG: Verificar formato do token (mascarado)
-    safe_token = f"{token[:15]}...{token[-5:]}" if len(token) > 20 else "CURTO/VAZIO"
-    logger.info(f"🔑 Auth Header gerado: {safe_token}")
+    logger.debug("🔐 Auth Header gerado")
         
     return {
         "Authorization": token,
@@ -160,10 +158,7 @@ def pedidos(json_body: str) -> str:
     url = f"{base}/pedidos/"  # Barra final necessária para FastAPI
     logger.info(f"Enviando pedido para: {url}")
     
-    # DEBUG: Log token being used (only first/last 4 chars for security)
-    token = settings.supermercado_auth_token or ""
-    token_preview = f"{token[:12]}...{token[-4:]}" if len(token) > 16 else token
-    logger.info(f"🔑 Token usado: {token_preview}")
+    logger.debug("🔐 Enviando pedido com Authorization header configurado")
     
     try:
         # Validar JSON
