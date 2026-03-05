@@ -667,15 +667,12 @@ def _extract_incoming(payload: Dict[str, Any]) -> Dict[str, Any]:
                 mensagem_texto = txt or message_any.get("body")
 
     if from_me:
-        # Se for mensagem enviada por MIM, tenta achar o destinatário
+        # Se for mensagem enviada por MIM (atendente), tenta achar o destinatário
         candidates_me = [chat.get("wa_id"), chat.get("phone"), payload.get("sender"), payload.get("to")]
         telefone = next((re.sub(r"\\D", "", c) for c in candidates_me if c and "@lid" not in str(c)), telefone)
-
-    # --- Lógica de Mídia ---
-    if message_type == "audio" and from_me:
-        # Áudio do ATENDENTE — não precisa transcrever. Só registrar.
-        # Evita 30s de timeout no download e duplicação de webhooks.
-        mensagem_texto = "[Áudio do atendente]"
+        # NÃO BAIXAR nem analisar nada. Apenas retornar o placeholder.
+        # O Human Takeover será tratado mais abaixo, após o logging.
+        mensagem_texto = mensagem_texto or f"[Mídia do atendente]"
     elif message_type == "audio" and not mensagem_texto:
         # Prioriza Base64 do webhook (mais eficiente que API)
         if media_base64:
@@ -689,10 +686,6 @@ def _extract_incoming(payload: Dict[str, Any]) -> Dict[str, Any]:
             
         mensagem_texto = f"[Áudio]: {trans}" if trans else "[Áudio inaudível]"
             
-    elif message_type == "image" and from_me:
-        # Imagem do ATENDENTE — não analisar, só registrar.
-        # Evita 30s de timeout bloqueando o servidor e causando duplicações de webhook.
-        mensagem_texto = mensagem_texto or "[Imagem do atendente]"
     elif message_type == "image":
         caption = mensagem_texto or ""
         analysis = None
