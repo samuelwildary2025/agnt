@@ -3422,3 +3422,5 @@ During task with name 'orchestrator' and id 'c896b902-0241-ea22-5be7-e32ad66656d
 2026-03-05 07:59:04 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
 2026-03-05 07:59:05 - tools.db_search - INFO - ⬆️ Priorização Horti: 4 produto(s) KG movido(s) para o topo
 2026-03-05 07:59:10 - tools.db_search - INFO - ⬆️ Priorização: 'abatido' movido para o topo da busca 'file de peito de frango frango abatido'
+2026-03-05 08:30:04 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
+2026-03-05 08:31:55 - tools.db_search - INFO - 🔌 Pool de conexões Postgres criado (min=1, max=5)
