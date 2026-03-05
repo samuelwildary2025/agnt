@@ -1317,13 +1317,36 @@ async def webhook(req: Request, tasks: BackgroundTasks):
         msg_id = data.get("message_id")  # ID da mensagem para mark_as_read
         media_url = data.get("media_url")
 
+        # =============================================
+        # HUMAN TAKEOVER: VERIFICAÇÃO PRIORITÁRIA
+        # Se from_me=True, não faz NADA além de pausar.
+        # Sem download de mídia, sem análise, sem buffer.
+        # =============================================
+        if from_me:
+            tel_clean = re.sub(r"\\D", "", tel or "")
+            agent_number = (settings.whatsapp_agent_number or "").strip()
+            agent_clean = re.sub(r"\\D", "", agent_number) if agent_number else ""
+            
+            if tel_clean and (not agent_clean or tel_clean != agent_clean):
+                ttl = settings.human_takeover_ttl  # Default: 2400s (40min)
+                set_agent_cooldown(tel_clean, ttl)
+                clear_cart(tel_clean)
+                logger.info(f"🙋 Human Takeover ativado para {tel_clean} - IA pausa por {ttl//60}min - Carrinho limpo")
+            
+            # Registrar mensagem no histórico como mensagem da IA
+            log_txt = txt or f"[{msg_type} do atendente]"
+            logger.info(f"In: {tel} | {msg_type} | from_me | {log_txt[:50]}")
+            try: get_session_history(tel).add_ai_message(log_txt)
+            except: pass
+            return JSONResponse(content={"status":"ignored_self"})
+
+        # === Daqui para baixo, é SEMPRE mensagem do CLIENTE (from_me=False) ===
+        
         # Fallback: Se o tipo vier como 'text' mas o corpo estiver vazio, pode ser uma mídia sem legenda
-        # que o bridge não classificou direito. Vamos tentar tratar como imagem.
         if msg_type == "text" and not txt and msg_id:
             logger.info(f"🕵️ Detectada possível mídia sem tipo em {msg_id}. Tentando conversão...")
             data["message_type"] = "image"
             msg_type = "image"
-            # O processamento abaixo cuidará de chamar o download via ID
 
         # Só bloqueamos se não houver telefone, OU se for texto puro sem conteúdo e sem mídia/ID
         if not tel or (not txt and msg_type == "text" and not media_url): 
@@ -1336,25 +1359,6 @@ async def webhook(req: Request, tasks: BackgroundTasks):
             logger.info(f"📎 Placeholder de mídia criado: {txt}")
         
         logger.info(f"In: {tel} | {msg_type} | {txt[:50] if txt else '[Mídia]'}")
-
-        if from_me:
-            # Detectar Human Takeover: Se o próprio WhatsApp enviou mensagem (atendente humano)
-            # Ativar cooldown para pausar a IA, desde que não seja uma mensagem enviada para o próprio bot
-            agent_number = (settings.whatsapp_agent_number or "").strip()
-            agent_clean = re.sub(r"\\D", "", agent_number) if agent_number else ""
-            tel_clean = re.sub(r"\\D", "", tel or "")
-            
-            # Só não ativa logica de pausa se a mensagem for do bot/atendente para o próprio número (anotações próprias)
-            if tel_clean and (not agent_clean or tel_clean != agent_clean):
-                # Ativar cooldown - IA pausa por X minutos
-                ttl = settings.human_takeover_ttl  # Default: 2400s (40min)
-                set_agent_cooldown(tel_clean, ttl)
-                clear_cart(tel_clean)  # Limpa o carrinho/sessão ao assumir
-                logger.info(f"🙋 Human Takeover ativado para {tel_clean} - IA pausa por {ttl//60}min - Carrinho limpo")
-            
-            try: get_session_history(tel).add_ai_message(txt)
-            except: pass
-            return JSONResponse(content={"status":"ignored_self"})
 
         num = re.sub(r"\\D","",tel)
         
