@@ -653,7 +653,11 @@ def _extract_incoming(payload: Dict[str, Any]) -> Dict[str, Any]:
         telefone = next((re.sub(r"\\D", "", c) for c in candidates_me if c and "@lid" not in str(c)), telefone)
 
     # --- Lógica de Mídia ---
-    if message_type == "audio" and not mensagem_texto:
+    if message_type == "audio" and from_me:
+        # Áudio do ATENDENTE — não precisa transcrever. Só registrar.
+        # Evita 30s de timeout no download e duplicação de webhooks.
+        mensagem_texto = "[Áudio do atendente]"
+    elif message_type == "audio" and not mensagem_texto:
         # Prioriza Base64 do webhook (mais eficiente que API)
         if media_base64:
             logger.info(f"🎤 Transcrevendo áudio via Base64 direto do webhook...")
