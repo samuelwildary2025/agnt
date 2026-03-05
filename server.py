@@ -1318,20 +1318,19 @@ async def webhook(req: Request, tasks: BackgroundTasks):
         logger.info(f"In: {tel} | {msg_type} | {txt[:50] if txt else '[Mídia]'}")
 
         if from_me:
-            # Detectar Human Takeover: Se o número do agente enviou mensagem
-            # Ativar cooldown para pausar a IA
+            # Detectar Human Takeover: Se o próprio WhatsApp enviou mensagem (atendente humano)
+            # Ativar cooldown para pausar a IA, desde que não seja uma mensagem enviada para o próprio bot
             agent_number = (settings.whatsapp_agent_number or "").strip()
-            if agent_number:
-                # Limpar para comparação
-                agent_clean = re.sub(r"\\D", "", agent_number)
-                tel_clean = re.sub(r"\\D", "", tel or "")
-                # Se a mensagem foi enviada PARA um cliente (não é conversa interna)
-                if tel_clean and tel_clean != agent_clean:
-                    # Ativar cooldown - IA pausa por X minutos
-                    ttl = settings.human_takeover_ttl  # Default: 900s (15min)
-                    set_agent_cooldown(tel_clean, ttl)
-                    clear_cart(tel_clean)  # Limpa o carrinho/sessão ao assumir
-                    logger.info(f"🙋 Human Takeover ativado para {tel_clean} - IA pausa por {ttl//60}min - Carrinho limpo")
+            agent_clean = re.sub(r"\\D", "", agent_number) if agent_number else ""
+            tel_clean = re.sub(r"\\D", "", tel or "")
+            
+            # Só não ativa logica de pausa se a mensagem for do bot/atendente para o próprio número (anotações próprias)
+            if tel_clean and (not agent_clean or tel_clean != agent_clean):
+                # Ativar cooldown - IA pausa por X minutos
+                ttl = settings.human_takeover_ttl  # Default: 2400s (40min)
+                set_agent_cooldown(tel_clean, ttl)
+                clear_cart(tel_clean)  # Limpa o carrinho/sessão ao assumir
+                logger.info(f"🙋 Human Takeover ativado para {tel_clean} - IA pausa por {ttl//60}min - Carrinho limpo")
             
             try: get_session_history(tel).add_ai_message(txt)
             except: pass
