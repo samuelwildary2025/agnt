@@ -167,6 +167,16 @@ def busca_produto_tool(telefone: str, query: str) -> str:
         weak_coverage = len(q_tokens) >= 2 and coverage < 0.50
         mixed_categories = len(cat_set) >= 2 and len(top3) >= 2
 
+        q_norm = _strip_accents((original_query or "").lower())
+        top_name = _strip_accents((ranked[0].get("nome", "") or "").lower())
+        strog_intent = bool(re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_norm))
+        if strog_intent and not re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", top_name):
+            return True, "pedido de strogonoff sem item de strogonoff no topo"
+
+        ovo_bandeja_intent = bool(re.search(r"\b(bandeja|cartela)\b", q_norm) and re.search(r"\bovos?\b", q_norm))
+        if ovo_bandeja_intent and "ovo" not in top_name:
+            return True, "pedido de bandeja/cartela de ovo sem ovo no topo"
+
         if low_score and weak_coverage:
             return True, "score baixo e baixa cobertura dos termos do cliente"
         if low_margin and (weak_coverage or mixed_categories):
@@ -259,6 +269,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return items
         q_tokens = set(_tokens_for_intent(original_query))
         q_norm = " ".join(sorted(q_tokens))
+        q_full = _strip_accents((original_query or "").lower())
         requested_brand = _requested_brand(original_query)
 
         # Mapa amplo de intenção -> pistas de categoria (evita depender só do nome exato)
@@ -304,6 +315,20 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                     semantic += 0.08
                 else:
                     semantic -= 0.02
+
+            # Regras fortes para estabilizar itens críticos
+            if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_full):
+                if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", name):
+                    semantic += 0.25
+                elif any(corte in name for corte in ["paleta", "acem", "musculo", "coxao", "patinho"]):
+                    semantic -= 0.20
+            if re.search(r"\b(bandeja|cartela)\b", q_full) and re.search(r"\bovos?\b", q_full):
+                if "ovo branco" in name:
+                    semantic += 0.30
+                elif "ovo" in name:
+                    semantic += 0.12
+                else:
+                    semantic -= 0.20
 
             semantic = round(max(0.0, min(1.2, semantic)), 4)
             item["semantic_score"] = semantic

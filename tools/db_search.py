@@ -667,6 +667,40 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
                     results = exact_creme_leite + others
                     logger.info("⬆️ Priorização: creme+leite movido para o topo")
 
+            # PRIORIZAÇÃO ESPECÍFICA: "strogonoff"
+            # Evita cair em cortes bovinos genéricos quando o pedido é strogonoff.
+            q_no_acc = _strip_accents(q.lower())
+            if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_no_acc):
+                strog = []
+                others = []
+                for r in results:
+                    nome_no_acc = _strip_accents((r.get("nome") or "").lower())
+                    if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", nome_no_acc):
+                        strog.append(r)
+                    else:
+                        others.append(r)
+                if strog:
+                    results = strog + others
+                    logger.info("⬆️ Priorização: item de strogonoff movido para o topo")
+
+            # PRIORIZAÇÃO ESPECÍFICA: "bandeja/cartela de ovo"
+            if re.search(r"\b(bandeja|cartela)\b", q_no_acc) and re.search(r"\bovos?\b", q_no_acc):
+                ovo_branco = []
+                ovos = []
+                others = []
+                for r in results:
+                    nome_no_acc = _strip_accents((r.get("nome") or "").lower())
+                    if "ovo branco" in nome_no_acc:
+                        ovo_branco.append(r)
+                    elif "ovo" in nome_no_acc:
+                        ovos.append(r)
+                    else:
+                        others.append(r)
+                prioritized = ovo_branco + ovos + others
+                if prioritized:
+                    results = prioritized
+                    logger.info("⬆️ Priorização: ovo branco/bandeja movido para o topo")
+
             # PRIORIZAÇÃO 1: Frango → abatido sempre primeiro
             PRIORITY_BOOST = {
                 "frango": "abatido",
