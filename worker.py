@@ -185,7 +185,9 @@ def _send_whatsapp_message(telefone: str, mensagem: str) -> bool:
         return True
     
     # Mensagem normal (sem imagem)
-    max_len = 500
+    # Mantemos o mesmo limite alto do servidor para evitar quebrar
+    # resumo + subtotal + bloco de confirmação em mensagens separadas.
+    max_len = 2000
     msgs = []
     
     if len(mensagem) > max_len:

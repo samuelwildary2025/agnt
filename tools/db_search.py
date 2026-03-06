@@ -171,6 +171,23 @@ def _apply_term_translations(query: str) -> str:
     if not q:
         return q
 
+    # Regra de exceção: "creme de leite" não deve cair na tradução genérica
+    # de "leite" -> "leite integral".
+    q_no_acc = _strip_accents(q.lower())
+    if re.search(r"\bcreme\s+de\s+leite\b", q_no_acc) or re.search(r"\bcreme\s+leite\b", q_no_acc):
+        if "nestle" in q_no_acc:
+            return "creme leite nestle"
+        if "caixinha" in q_no_acc or "tp" in q_no_acc:
+            return "creme leite tp"
+        return "creme leite"
+
+    # Regra de exceção: "danone ninho" / "cartela de danone ninho"
+    # deve buscar iogurte polpa ninho (BDJ), e não leite em pó ninho.
+    if "danone" in q_no_acc and "ninho" in q_no_acc:
+        return "iogurte polpa ninho bdj 540g"
+    if "cartela" in q_no_acc and ("danone" in q_no_acc or "danoninho" in q_no_acc):
+        return "iogurte polpa ninho bdj 540g"
+
     q_low = q.lower()
     tokens = q_low.split(" ")
 
@@ -627,6 +644,22 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
                 # Definir 0.50 como limite mais complacente já que o PostgreSQL filtrou o joio do trigo
                 r["match_ok"] = score >= 0.50
             results = sorted(results, key=lambda r: r.get("match_score", 0.0), reverse=True)
+
+            # PRIORIZAÇÃO ESPECÍFICA: "creme de leite"
+            # Evita que "leite em pó" apareça acima de "creme de leite" quando a query é genérica.
+            q_tokens = set(_tokenize_for_match(q))
+            if "creme" in q_tokens and "leite" in q_tokens:
+                exact_creme_leite = []
+                others = []
+                for r in results:
+                    nome_tokens = set(_tokenize_for_match(r.get("nome") or ""))
+                    if {"creme", "leite"}.issubset(nome_tokens):
+                        exact_creme_leite.append(r)
+                    else:
+                        others.append(r)
+                if exact_creme_leite:
+                    results = exact_creme_leite + others
+                    logger.info("⬆️ Priorização: creme+leite movido para o topo")
 
             # PRIORIZAÇÃO 1: Frango → abatido sempre primeiro
             PRIORITY_BOOST = {

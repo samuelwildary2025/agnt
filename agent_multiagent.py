@@ -84,6 +84,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
     from tools.db_search import search_products_db
     import unicodedata
     import json
+    import difflib
 
     def _strip_accents(text: str) -> str:
         return "".join(
@@ -116,6 +117,21 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                 continue
             out.append(tk)
         return out
+
+    def _requested_brand(raw: str) -> str:
+        q_tokens = set(_tokens_for_intent(raw))
+        brand_aliases = {
+            "ninho": "ninho",
+            "nestle": "nestle",
+            "itambe": "itambe",
+            "italac": "italac",
+            "betania": "betania",
+            "danone": "danone",
+        }
+        for alias, canonical in brand_aliases.items():
+            if alias in q_tokens:
+                return canonical
+        return ""
 
     def _needs_confirmation(items: list, original_query: str) -> tuple[bool, str]:
         candidates = [i for i in items if isinstance(i, dict) and "nome" in i]
@@ -169,6 +185,10 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if "frango" in token_set or "galinha" in token_set:
                 return "frango para strogonoff"
             return "carne para strogonoff"
+        if "danone" in token_set and ("ninho" in token_set or "cartela" in token_set):
+            return "iogurte polpa ninho bdj 540g"
+        if "danoninho" in token_set or ("cartela" in token_set and "iogurte" in token_set):
+            return "iogurte polpa ninho bdj 540g"
 
         intent_map = {
             "pirulito": {"pop", "pirulito", "pops"},
@@ -230,37 +250,101 @@ def busca_produto_tool(telefone: str, query: str) -> str:
         except Exception:
             return raw, []
 
-    # 1) Busca original
-    resultado_json, resultados = _run_search(query)
+    def _semantic_rerank(items: list, original_query: str) -> list:
+        if not items:
+            return items
+        q_tokens = set(_tokens_for_intent(original_query))
+        q_norm = " ".join(sorted(q_tokens))
+        requested_brand = _requested_brand(original_query)
+
+        # Mapa amplo de intenção -> pistas de categoria (evita depender só do nome exato)
+        intent_category_hints = [
+            ({"iogurte", "danone", "danoninho", "petit", "suisse", "lacteo"}, {"iogurte", "latic"}),
+            ({"cerveja", "heineken", "skol", "brahma", "budweiser"}, {"cerveja", "bebida"}),
+            ({"refrigerante", "coca", "pepsi", "guarana", "fanta", "sprite", "refri"}, {"bebida", "refrigerante"}),
+            ({"carne", "acougue", "boi", "bovina", "frango", "suina", "suino"}, {"acougue", "carne", "frigor", "aves"}),
+            ({"arroz", "feijao", "macarrao", "farinha", "oleo", "acucar"}, {"mercearia"}),
+            ({"detergente", "sabao", "amaciante", "agua", "sanitaria", "desinfetante"}, {"limpeza"}),
+            ({"shampoo", "sabonete", "creme", "dental", "fralda"}, {"higiene"}),
+            ({"banana", "maca", "laranja", "tomate", "cebola", "batata", "limao"}, {"horti", "fruta", "legume", "verdura"}),
+            ({"pao", "queijo", "mussarela", "presunto"}, {"padaria", "frios", "latic"}),
+        ]
+
+        reranked = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            base = float(item.get("match_score", 0.0) or 0.0)
+            name = _strip_accents((item.get("nome") or "").lower())
+            cat = _strip_accents((item.get("categoria") or "").lower())
+            name_tokens = set(_tokens_for_intent(name))
+
+            overlap = len(q_tokens & name_tokens) / max(len(q_tokens), 1) if q_tokens else 0.0
+            ratio = difflib.SequenceMatcher(
+                None,
+                q_norm,
+                " ".join(sorted(set(_tokens_for_intent(f"{name} {cat}")))),
+            ).ratio()
+
+            semantic = (0.45 * base) + (0.35 * overlap) + (0.20 * ratio)
+
+            for trigger_tokens, category_hints in intent_category_hints:
+                if q_tokens & trigger_tokens:
+                    if any(h in cat for h in category_hints):
+                        semantic += 0.10
+                    else:
+                        semantic -= 0.03
+
+            if requested_brand:
+                if requested_brand in name:
+                    semantic += 0.08
+                else:
+                    semantic -= 0.02
+
+            semantic = round(max(0.0, min(1.2, semantic)), 4)
+            item["semantic_score"] = semantic
+            item["match_score"] = max(base, semantic)
+            item["match_ok"] = bool(item.get("match_score", 0.0) >= 0.50)
+            reranked.append(item)
+
+        reranked.sort(key=lambda r: float(r.get("match_score", 0.0) or 0.0), reverse=True)
+        return reranked
+
+    # 1) Busca híbrida por múltiplas interpretações da intenção
+    query_original = (query or "").strip()
+    query_limpa = _simplify_query(query_original)
+    query_intent = _infer_intent_query(query_original)
+    salient = _tokens_for_intent(query_original)
+    query_core = " ".join(salient[:2]) if len(salient) >= 2 else ""
+
+    candidate_queries = []
+    for candidate in [query_original, query_limpa, query_intent, query_core]:
+        c = (candidate or "").strip()
+        if c and c.lower() not in {x.lower() for x in candidate_queries}:
+            candidate_queries.append(c)
+
+    merged = {}
+    for idx, cq in enumerate(candidate_queries[:4]):
+        if idx > 0:
+            logger.info(f"🔄 Retry Busca Inteligente: '{query_original}' -> '{cq}'")
+        _, rows = _run_search(cq)
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get("id") or (row.get("nome") or "").lower())
+            prev = merged.get(key)
+            if prev is None:
+                merged[key] = dict(row)
+            else:
+                prev_score = float(prev.get("match_score", 0.0) or 0.0)
+                new_score = float(row.get("match_score", 0.0) or 0.0)
+                if new_score > prev_score:
+                    merged[key] = dict(row)
+
+    resultados = list(merged.values())
+    resultados = _semantic_rerank(resultados, query_original)
     melhor_score, any_ok = _query_quality(resultados)
-
-    # 2) Se veio fraco, refazer com intenção e simplificação
-    needs_retry = (not resultados) or (melhor_score < 0.60) or (not any_ok)
-    if needs_retry:
-        fallback_queries = []
-        query_limpa = _simplify_query(query)
-        query_intent = _infer_intent_query(query)
-
-        for candidate in [query_limpa, query_intent]:
-            c = (candidate or "").strip()
-            if c and c.lower() != (query or "").strip().lower() and c not in fallback_queries:
-                fallback_queries.append(c)
-
-        for candidate in fallback_queries[:3]:
-            logger.info(f"🔄 Retry Busca Inteligente: '{query}' -> '{candidate}'")
-            resultado_retry_json, resultados_retry = _run_search(candidate)
-            score_retry, any_ok_retry = _query_quality(resultados_retry)
-
-            should_take = (
-                (any_ok_retry and not any_ok)
-                or (score_retry > melhor_score + 0.05)
-                or (not resultados and bool(resultados_retry))
-            )
-            if should_take:
-                resultado_json = resultado_retry_json
-                resultados = resultados_retry
-                melhor_score = score_retry
-                any_ok = any_ok_retry
+    resultado_json = json.dumps(resultados, ensure_ascii=False)
 
     # 3) Analise de ambiguidade e confiança semântica
     if resultados:
@@ -308,10 +392,39 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if not any(isinstance(r, dict) and r.get("id") == "AVISO_BAIXA_CONFIANCA" for r in resultados):
                 resultados.insert(0, warning)
 
+        # Preferência de marca (modo flexível):
+        # se cliente pediu marca e os resultados não contêm essa marca,
+        # não bloqueia tudo; força confirmação para evitar troca errada silenciosa.
+        requested_brand = _requested_brand(query)
+        if requested_brand:
+            has_brand_hit = any(
+                requested_brand in _strip_accents((r.get("nome") or "").lower())
+                for r in resultados
+                if isinstance(r, dict)
+            )
+            if not has_brand_hit:
+                for r in resultados:
+                    if isinstance(r, dict) and r.get("id") not in {"AVISO_AMBIGUIDADE", "AVISO_BAIXA_CONFIANCA", "AVISO_MARCA"}:
+                        r["match_ok"] = False
+                aviso_marca = {
+                    "id": "AVISO_MARCA",
+                    "nome": "⚠️ MARCA NÃO LOCALIZADA",
+                    "preco": 0.0,
+                    "estoque": 1.0,
+                    "match_score": 0.0,
+                    "match_ok": False,
+                    "aviso": (
+                        f"O cliente pediu marca '{requested_brand}', mas os resultados não mostram essa marca no nome. "
+                        "Confirme com o cliente se aceita alternativa."
+                    ),
+                }
+                if not any(isinstance(r, dict) and r.get("id") == "AVISO_MARCA" for r in resultados):
+                    resultados.insert(0, aviso_marca)
+
         # Persistir pendência quando houver baixa confiança/ambiguidade
         try:
             has_warning = any(
-                isinstance(r, dict) and r.get("id") in {"AVISO_AMBIGUIDADE", "AVISO_BAIXA_CONFIANCA"}
+                isinstance(r, dict) and r.get("id") in {"AVISO_AMBIGUIDADE", "AVISO_BAIXA_CONFIANCA", "AVISO_MARCA"}
                 for r in resultados
             )
             any_confirmed = any(bool(r.get("match_ok")) for r in resultados if isinstance(r, dict) and "nome" in r)
