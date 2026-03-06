@@ -975,6 +975,7 @@ def buffer_loop(tel):
     """
     try:
         n = re.sub(r"\\D","",tel)
+        first_window = True
         
         while True:  # Loop principal para pegar mensagens que chegam durante processamento
             prev = get_buffer_length(n)
@@ -983,14 +984,20 @@ def buffer_loop(tel):
             if prev == 0:
                 break
                 
-            stall = 0
-            
-            # Esperar por mais mensagens (3 ciclos de 3.5s)
-            while stall < 3:
-                time.sleep(5)  # 3 ciclos de 5s = 15 segundos total
+            # Janela deslizante:
+            # - Primeira espera: 15s
+            # - Se chegarem novas mensagens, próximas esperas: 10s de silêncio
+            quiet_window = 15 if first_window else 10
+            idle_elapsed = 0
+            while idle_elapsed < quiet_window:
+                time.sleep(1)
                 curr = get_buffer_length(n)
-                if curr > prev: prev, stall = curr, 0
-                else: stall += 1
+                if curr > prev:
+                    prev = curr
+                    idle_elapsed = 0
+                    quiet_window = 10
+                else:
+                    idle_elapsed += 1
             
             # Consumir e processar mensagens
             # AGORA RETORNA TEXTOS E LAST_MID
@@ -1006,10 +1013,24 @@ def buffer_loop(tel):
             order_ctx = get_order_context(n, final)
             if order_ctx:
                 final = f"{order_ctx}\\n\\n{final}"
+
+            # Janela curta para juntar mensagens que chegaram logo após o pop
+            # e evitar duas respostas de pedido em sequência.
+            time.sleep(2)
+            late_msgs, late_mids = pop_all_messages(n)
+            late_clean = [m for m in (late_msgs or []) if isinstance(m, str) and m.strip()]
+            if late_clean:
+                final = f"{final} | {' | '.join(late_clean)}"
+                if isinstance(last_mid, list):
+                    last_mid = list(last_mid) + list(late_mids or [])
+                else:
+                    last_mid = list(late_mids or [])
+                logger.info(f"📦 Buffer merge tardio (sync): {len(late_clean)} msg(s) anexada(s) para {n}")
             
             # Processar (enquanto isso, novas mensagens podem chegar)
             # Passa o last_mid para marcar como lido
             process_async(n, final, mid=last_mid)
+            first_window = False
             
             # Após processar, o loop vai verificar se tem novas mensagens
             # Se tiver, processa novamente. Se não, sai.
@@ -1119,6 +1140,7 @@ async def _enqueue_buffer_job(telefone: str):
     try:
         n = re.sub(r"\\D","",telefone)
         refresh_buffer_session_lock(n)
+        first_window = True
         
         while True:
             refresh_buffer_session_lock(n)
@@ -1126,16 +1148,21 @@ async def _enqueue_buffer_job(telefone: str):
             if prev == 0:
                 break
             
-            stall = 0
-            # Esperar por mais mensagens (3 ciclos de 5s)
-            while stall < 3:
-                await asyncio.sleep(5)
+            # Janela deslizante:
+            # - Primeira espera: 15s
+            # - Se chegarem novas mensagens, próximas esperas: 10s de silêncio
+            quiet_window = 15 if first_window else 10
+            idle_elapsed = 0
+            while idle_elapsed < quiet_window:
+                await asyncio.sleep(1)
                 refresh_buffer_session_lock(n)
                 curr = get_buffer_length(n)
-                if curr > prev: 
-                    prev, stall = curr, 0
-                else: 
-                    stall += 1
+                if curr > prev:
+                    prev = curr
+                    idle_elapsed = 0
+                    quiet_window = 10
+                else:
+                    idle_elapsed += 1
             
             # Consumir mensagens do buffer
             msgs, mids = pop_all_messages(n)
@@ -1148,9 +1175,22 @@ async def _enqueue_buffer_job(telefone: str):
             order_ctx = get_order_context(n, final)
             if order_ctx:
                 final = f"{order_ctx}\n\n{final}"
+
+            # Janela curta para capturar mensagens que chegaram exatamente
+            # após o pop do buffer e evitar respostas em blocos duplicados.
+            await asyncio.sleep(2)
+            late_msgs, late_mids = pop_all_messages(n)
+            late_clean = [m for m in (late_msgs or []) if isinstance(m, str) and m.strip()]
+            if late_clean:
+                final = f"{final} | {' | '.join(late_clean)}"
+                mids = list(mids or []) + list(late_mids or [])
+                logger.info(
+                    f"📦 Buffer merge tardio: {len(late_clean)} msg(s) anexada(s) para {n} antes do enfileiramento"
+                )
             
             # MUDANÇA: Enfileirar job com LISTA de IDs
             await _enqueue_process_job(n, final, mids)
+            first_window = False
             
     except Exception as e:
         logger.error(f"Erro no buffer_loop async: {e}")
