@@ -1307,6 +1307,133 @@ def clear_suggestions(telefone: str) -> bool:
         logger.error(f"Erro ao limpar sugestões: {e}")
         return False
 
+
+# ============================================
+# Pendências de Confirmação (Anti-esquecimento)
+# ============================================
+
+PENDING_TTL = 1800  # 30 minutos
+
+
+def pending_key(telefone: str) -> str:
+    return f"pending:{normalize_phone(telefone)}"
+
+
+def save_pending_confirmation(telefone: str, termo: str, opcoes: List[str]) -> bool:
+    """
+    Salva/atualiza uma pendência de confirmação para evitar perda de itens ambíguos.
+    """
+    client = get_redis_client()
+    telefone = normalize_phone(telefone)
+    if client is None:
+        return False
+
+    termo_clean = (termo or "").strip()
+    if not termo_clean:
+        return False
+
+    opcoes_clean = []
+    for o in (opcoes or []):
+        txt = (o or "").strip()
+        if txt and txt not in opcoes_clean:
+            opcoes_clean.append(txt)
+    if not opcoes_clean:
+        return False
+
+    try:
+        key = pending_key(telefone)
+        existing = []
+        raw = client.get(key)
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    existing = parsed
+            except Exception:
+                existing = []
+
+        normalized = normalize_phone(termo_clean)
+        termo_low = termo_clean.lower()
+        updated = False
+        for entry in existing:
+            et = str(entry.get("termo", "")).strip()
+            if et.lower() == termo_low or normalize_phone(et) == normalized:
+                entry["opcoes"] = opcoes_clean
+                updated = True
+                break
+
+        if not updated:
+            existing.append({"termo": termo_clean, "opcoes": opcoes_clean})
+
+        client.set(key, json.dumps(existing, ensure_ascii=False), ex=PENDING_TTL)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar pendência: {e}")
+        return False
+
+
+def get_pending_confirmations(telefone: str) -> List[Dict]:
+    client = get_redis_client()
+    telefone = normalize_phone(telefone)
+    if client is None:
+        return []
+    try:
+        raw = client.get(pending_key(telefone))
+        if not raw:
+            return []
+        data = json.loads(raw)
+        return data if isinstance(data, list) else []
+    except Exception as e:
+        logger.error(f"Erro ao recuperar pendências: {e}")
+        return []
+
+
+def resolve_pending_confirmation(telefone: str, produto_escolhido: str) -> bool:
+    """
+    Remove pendências resolvidas quando o produto escolhido bater com as opções salvas.
+    """
+    client = get_redis_client()
+    telefone = normalize_phone(telefone)
+    if client is None:
+        return False
+    chosen = (produto_escolhido or "").strip().lower()
+    if not chosen:
+        return False
+    try:
+        key = pending_key(telefone)
+        pending = get_pending_confirmations(telefone)
+        if not pending:
+            return True
+
+        filtered = []
+        for entry in pending:
+            options = [str(o).lower() for o in entry.get("opcoes", []) if o]
+            if any(chosen in o or o in chosen for o in options):
+                continue
+            filtered.append(entry)
+
+        if filtered:
+            client.set(key, json.dumps(filtered, ensure_ascii=False), ex=PENDING_TTL)
+        else:
+            client.delete(key)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao resolver pendência: {e}")
+        return False
+
+
+def clear_pending_confirmations(telefone: str) -> bool:
+    client = get_redis_client()
+    telefone = normalize_phone(telefone)
+    if client is None:
+        return False
+    try:
+        client.delete(pending_key(telefone))
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao limpar pendências: {e}")
+        return False
+
 # ============================================
 # Circuit Breaker (Disjuntor de API)
 # ============================================
