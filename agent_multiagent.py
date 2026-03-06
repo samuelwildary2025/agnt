@@ -41,8 +41,6 @@ from tools.redis_tools import (
     clear_order_session,
     start_order_session,
     clear_suggestions,
-    save_pending_confirmation,
-    get_pending_confirmations,
     resolve_pending_confirmation,
     clear_pending_confirmations,
 )
@@ -497,30 +495,6 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                 if not any(isinstance(r, dict) and r.get("id") == "AVISO_MARCA" for r in resultados):
                     resultados.insert(0, aviso_marca)
 
-        # Persistir pendência quando houver baixa confiança/ambiguidade
-        try:
-            has_warning = any(
-                isinstance(r, dict) and r.get("id") in {"AVISO_AMBIGUIDADE", "AVISO_BAIXA_CONFIANCA", "AVISO_MARCA"}
-                for r in resultados
-            )
-            any_confirmed = any(bool(r.get("match_ok")) for r in resultados if isinstance(r, dict) and "nome" in r)
-            if has_warning or not any_confirmed:
-                top_options = []
-                for r in resultados:
-                    if not isinstance(r, dict):
-                        continue
-                    nome = (r.get("nome") or "").strip()
-                    if not nome or nome.startswith("⚠️"):
-                        continue
-                    if nome not in top_options:
-                        top_options.append(nome)
-                    if len(top_options) >= 3:
-                        break
-                if top_options:
-                    save_pending_confirmation(telefone, query, top_options)
-        except Exception as e:
-            logger.warning(f"Falha ao salvar pendência de confirmação: {e}")
-
         resultado_json = json.dumps(resultados, ensure_ascii=False)
 
     return resultado_json
@@ -792,23 +766,6 @@ def finalizar_pedido_tool(cliente: str, telefone: str, endereco: str, forma_paga
     if not items:
         return "❌ O pedido está vazio! Você deve repassar a lista de produtos confirmados."
 
-    # Proteção anti-esquecimento: não finalizar com pendências abertas
-    try:
-        pendencias = get_pending_confirmations(telefone)
-        if pendencias:
-            preview = []
-            for p in pendencias[:3]:
-                termo = (p.get("termo") or "").strip()
-                if termo:
-                    preview.append(termo)
-            pend_str = ", ".join(preview) if preview else "itens pendentes"
-            return (
-                f"⚠️ Ainda existem itens sem confirmação ({pend_str}). "
-                "Confirme com o cliente antes de finalizar o pedido."
-            )
-    except Exception:
-        pass
-    
     comprovante_salvo = get_comprovante(telefone)
     comprovante_final = comprovante or comprovante_salvo or ""
     
@@ -1177,23 +1134,6 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
             if len(previous_messages) == 0:
                  contexto += "[CLIENTE_NOVO: não cadastrado]\n[SESSÃO] Nova conversa.\n"
 
-        # 3.2 Injetar pendências abertas para evitar esquecimento de itens ambíguos
-        try:
-            pendencias = get_pending_confirmations(telefone)
-            if pendencias:
-                linhas = []
-                for p in pendencias[:5]:
-                    termo = (p.get("termo") or "").strip()
-                    opcoes = [str(o).strip() for o in (p.get("opcoes") or []) if str(o).strip()]
-                    if termo and opcoes:
-                        linhas.append(f"{termo}: {', '.join(opcoes[:3])}")
-                if linhas:
-                    contexto += "[PENDENCIAS_ABERTAS] Antes de seguir, confirme estes itens com o cliente:\n"
-                    for ln in linhas:
-                        contexto += f"- {ln}\n"
-        except Exception as e:
-            logger.warning(f"⚠️ Falha ao recuperar pendências: {e}")
-        
         # Expansão de mensagens curtas
         mensagem_expandida = clean_message
         msg_lower = clean_message.lower().strip()
