@@ -203,6 +203,8 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return False, ""
         if ("animados" in q_norm and "chocolate" in q_norm) and ("animados" in top_name):
             return False, ""
+        if (("massa fina" in q_norm) or ("massafina" in q_norm) or ("sovado" in q_norm)) and ("sovado" in top_name):
+            return False, ""
         if all(k in q_norm for k in ["pao", "integral", "fatima"]) and all(k in top_name for k in ["pao", "integral", "fatima"]):
             return False, ""
 
@@ -228,6 +230,8 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if "carne" in token_set or "boi" in token_set or "bovina" in token_set:
                 return "strogonoff kg"
             return "strogonoff kg"
+        if (("massa" in token_set and "fina" in token_set) or "massafina" in token_set or "sovado" in token_set):
+            return "pao sovado"
         if "pao" in token_set and "integral" in token_set:
             if "fatima" in token_set:
                 return "pao de forma integral fatima"
@@ -374,6 +378,11 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                     semantic += 0.30
                 elif "pao" in name and "fatima" in name and "tradicional" in name:
                     semantic -= 0.12
+            if (("massa" in q_tokens and "fina" in q_tokens) or "massafina" in q_tokens or "sovado" in q_tokens):
+                if "sovado" in name:
+                    semantic += 0.35
+                elif "pao frances" in name or "frances" in name:
+                    semantic -= 0.10
 
             # Regras fortes para estabilizar itens críticos
             if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_full):

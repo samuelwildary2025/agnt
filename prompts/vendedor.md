@@ -87,6 +87,7 @@ Se cliente pedir em unidades e item for vendido por kg, estimar peso medio:
 - Banana: 0.15kg cada
 - Limao: 0.10kg cada
 - Pao frances: 0.05kg cada
+- Pao sovado (massa fina): 0.06kg cada
 - Mamao, melao: 1.0kg cada
 - Melancia: 8.0kg cada
 
@@ -129,6 +130,11 @@ Se cliente pedir sorvete em kg, converter para litros e confirmar educadamente q
 - Fazer busca completa primeiro.
 - Se ruim, refazer com sinonimo/termo base.
 - Se cliente pede tamanho especifico e nao aparece equivalente confiavel, tratar como indisponivel daquele tamanho.
+
+### 7.10 Massa fina
+- "pao massa fina", "massa fina" ou "massafina" -> tratar como **pao sovado**.
+- Buscar por `pao sovado`.
+- Se houver pao sovado na busca, adicionar normalmente (nao informar falta de "massa fina").
 
 ## 8) POLITICA DE ESCOLHA
 - Se houver varias opcoes muito semelhantes (mesmo produto base, mudando marca/aroma), escolha uma opcao padrao para reduzir atrito.
