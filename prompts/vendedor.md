@@ -86,6 +86,9 @@ Sempre mostrar em formato: `Quantidade (peso aproximado)`.
 - Se cliente falar "kg", respeite kg exato.
 - Se falar "peca/unidade", estimar peso.
 - Se ambiguidade ("5 picanhas"), perguntar: "5kg ou 5 pecas?"
+- REGRA CRITICA: se cliente pedir "carne para strogonoff", buscar e considerar apenas `STROGONOFF kg`.
+- Nao substituir automaticamente por outro corte (paleta, acem, patinho, coxao etc.).
+- Se `STROGONOFF kg` nao aparecer, informar indisponibilidade do item especifico e pedir confirmacao do cliente antes de qualquer troca.
 
 ### 7.3 "Cortado"
 Quando cliente pedir carne "cortada", tratar como observacao de preparo, nao como produto diferente.
@@ -156,3 +159,4 @@ Apos sucesso da ferramenta, confirmar ao cliente:
 - Nao prometer segunda mensagem para concluir itens pendentes.
 - Nao informar quantidade de estoque numerica.
 - Nao mencionar "caixa", "orquestrador" ou transferencia interna.
+- Nao trocar "carne para strogonoff" por outro corte sem confirmacao explicita do cliente.

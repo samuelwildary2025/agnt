@@ -189,6 +189,8 @@ def _apply_term_translations(query: str) -> str:
         return "iogurte polpa ninho bdj 540g"
     if re.search(r"\b(carne|boi|bovina)\b", q_no_acc) and re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_no_acc):
         return "strogonoff kg"
+    if re.search(r"\bpicadinho\b", q_no_acc) or re.search(r"\bcarne\s+picada\b", q_no_acc):
+        return "picadinho bovino kg"
     if re.search(r"\bbolinhas?\b", q_no_acc) and re.search(r"\bqueijo\b", q_no_acc):
         return "mini bolinha pannemix queijo kg"
     if re.search(r"\b(bandeja|cartela)\b", q_no_acc) and re.search(r"\bovos?\b", q_no_acc):

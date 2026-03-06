@@ -195,6 +195,8 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if "carne" in token_set or "boi" in token_set or "bovina" in token_set:
                 return "strogonoff kg"
             return "strogonoff kg"
+        if "picadinho" in token_set:
+            return "picadinho bovino kg"
         if ("bolinha" in token_set or "bolinhas" in token_set) and "queijo" in token_set:
             return "mini bolinha pannemix queijo kg"
         if ("bandeja" in token_set or "cartela" in token_set) and ("ovo" in token_set or "ovos" in token_set):
@@ -346,11 +348,21 @@ def busca_produto_tool(telefone: str, query: str) -> str:
     salient = _tokens_for_intent(query_original)
     query_core = " ".join(salient[:2]) if len(salient) >= 2 else ""
 
+    q_norm_full = _strip_accents(query_original.lower())
+    is_beef_strog_intent = bool(
+        re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_norm_full)
+        and re.search(r"\b(carne|boi|bovina)\b", q_norm_full)
+    )
+
     candidate_queries = []
-    for candidate in [query_original, query_limpa, query_intent, query_core]:
-        c = (candidate or "").strip()
-        if c and c.lower() not in {x.lower() for x in candidate_queries}:
-            candidate_queries.append(c)
+    if is_beef_strog_intent:
+        # Regra rígida: para "carne para strogonoff", sempre consultar o termo oficial.
+        candidate_queries = ["strogonoff kg"]
+    else:
+        for candidate in [query_original, query_limpa, query_intent, query_core]:
+            c = (candidate or "").strip()
+            if c and c.lower() not in {x.lower() for x in candidate_queries}:
+                candidate_queries.append(c)
 
     merged = {}
     for idx, cq in enumerate(candidate_queries[:4]):
@@ -372,6 +384,37 @@ def busca_produto_tool(telefone: str, query: str) -> str:
 
     resultados = list(merged.values())
     resultados = _semantic_rerank(resultados, query_original)
+
+    if is_beef_strog_intent and resultados:
+        strog_results = []
+        other_results = []
+        for r in resultados:
+            if not isinstance(r, dict):
+                continue
+            nome_no_acc = _strip_accents((r.get("nome") or "").lower())
+            if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", nome_no_acc):
+                strog_results.append(r)
+            else:
+                other_results.append(r)
+
+        if strog_results:
+            resultados = strog_results
+        else:
+            for r in other_results:
+                r["match_ok"] = False
+            warning = {
+                "id": "AVISO_STROGONOFF_EXATO",
+                "nome": "⚠️ ITEM ESPECÍFICO NÃO LOCALIZADO",
+                "preco": 0.0,
+                "estoque": 0,
+                "match_ok": False,
+                "aviso": (
+                    "Para 'carne para strogonoff' eu só posso usar o item oficial 'STROGONOFF kg'. "
+                    "No momento ele não apareceu na busca."
+                ),
+            }
+            resultados = [warning] + other_results
+
     melhor_score, any_ok = _query_quality(resultados)
     resultado_json = json.dumps(resultados, ensure_ascii=False)
 
