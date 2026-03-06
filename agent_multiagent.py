@@ -42,7 +42,7 @@ from tools.redis_tools import (
     start_order_session,
     clear_suggestions,
     save_pending_confirmation,
-    get_pending_confirmations,
+    get_pending_confirmations_open,
     resolve_pending_confirmation,
     clear_pending_confirmations,
 )
@@ -790,7 +790,7 @@ def finalizar_pedido_tool(cliente: str, telefone: str, endereco: str, forma_paga
 
     # Proteção anti-esquecimento: não finalizar com pendências abertas
     try:
-        pendencias = get_pending_confirmations(telefone)
+        pendencias = get_pending_confirmations_open(telefone)
         if pendencias:
             preview = []
             for p in pendencias[:3]:
@@ -1167,7 +1167,7 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
 
         # 3.2 Injetar pendências abertas para evitar esquecimento de itens ambíguos
         try:
-            pendencias = get_pending_confirmations(telefone)
+            pendencias = get_pending_confirmations_open(telefone)
             if pendencias:
                 linhas = []
                 for p in pendencias[:5]:

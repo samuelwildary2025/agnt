@@ -5,6 +5,7 @@ Apenas funcionalidades essenciais mantidas
 import redis
 import time
 import uuid
+import re
 from threading import Lock
 from typing import Optional, Dict, List, Tuple
 from config.settings import settings
@@ -1433,6 +1434,64 @@ def clear_pending_confirmations(telefone: str) -> bool:
     except Exception as e:
         logger.error(f"Erro ao limpar pendências: {e}")
         return False
+
+
+def get_pending_confirmations_open(telefone: str) -> List[Dict]:
+    """
+    Retorna apenas pendências ainda abertas, removendo automaticamente
+    as que já foram atendidas por itens presentes no carrinho.
+    """
+    client = get_redis_client()
+    telefone = normalize_phone(telefone)
+    if client is None:
+        return get_pending_confirmations(telefone)
+
+    def _norm(text: str) -> str:
+        t = (text or "").strip().lower()
+        t = re.sub(r"[^a-z0-9]+", " ", t)
+        return re.sub(r"\s+", " ", t).strip()
+
+    try:
+        pending = get_pending_confirmations(telefone)
+        if not pending:
+            return []
+
+        cart_items = get_cart_items(telefone)
+        cart_names = [
+            _norm(str(item.get("produto", "")))
+            for item in (cart_items or [])
+            if isinstance(item, dict) and str(item.get("produto", "")).strip()
+        ]
+        if not cart_names:
+            return pending
+
+        still_open: List[Dict] = []
+        for entry in pending:
+            termo = _norm(str(entry.get("termo", "")))
+            opcoes = [_norm(str(o)) for o in (entry.get("opcoes") or []) if str(o).strip()]
+
+            resolved = False
+            # Se termo ou alguma opção já aparece no produto do carrinho, considera resolvido.
+            probes = [termo] + opcoes
+            for p in probes:
+                if not p:
+                    continue
+                if any((p in cn) or (cn in p) for cn in cart_names):
+                    resolved = True
+                    break
+
+            if not resolved:
+                still_open.append(entry)
+
+        key = pending_key(telefone)
+        if still_open:
+            client.set(key, json.dumps(still_open, ensure_ascii=False), ex=PENDING_TTL)
+        else:
+            client.delete(key)
+        return still_open
+    except Exception as e:
+        logger.error(f"Erro ao filtrar pendências abertas: {e}")
+        return get_pending_confirmations(telefone)
 
 # ============================================
 # Circuit Breaker (Disjuntor de API)
