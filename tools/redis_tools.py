@@ -610,11 +610,15 @@ def get_order_context(telefone: str, mensagem: str = "") -> str:
                 pass
         
         if was_completed:
-            # Pedido anterior FOI finalizado - iniciar novo normalmente
-            return "[SESSÃO] Novo pedido iniciado. Cliente já fez pedido anteriormente."
+            # Pedido anterior FOI finalizado.
+            if is_greeting:
+                return "[SESSÃO] Novo pedido iniciado. Cliente já fez pedido anteriormente."
+            return "[SESSÃO] Novo pedido direto. Não cumprimente; responda com atualização objetiva do pedido."
         else:
-            # Conversa nova ou sessão expirou SEM finalizar
-            return "[SESSÃO] Nova conversa. Monte o pedido normalmente."
+            # Conversa nova ou sessão expirou.
+            if is_greeting:
+                return "[SESSÃO] Nova conversa. Monte o pedido normalmente."
+            return "[SESSÃO] Nova conversa com pedido direto. Não cumprimente; responda objetivamente."
     
     status = session.get("status", "building")
     
@@ -1295,7 +1299,14 @@ def save_suggestions(telefone: str, products: List[Dict]) -> bool:
         
         # Salvar como JSON
         client.set(key, json.dumps(final_list, ensure_ascii=False), ex=SUGGESTIONS_TTL)
-        logger.info(f"💡 {len(final_list)} sugestões salvas (Merge: {len(existing_products)} + {len(products)}) para {telefone}")
+        if len(final_list) != len(existing_products):
+            logger.info(
+                f"💡 {len(final_list)} sugestões salvas (Merge: {len(existing_products)} + {len(products)}) para {telefone}"
+            )
+        else:
+            logger.debug(
+                f"💡 Sugestões inalteradas ({len(final_list)}) para {telefone}"
+            )
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar sugestões: {e}")
