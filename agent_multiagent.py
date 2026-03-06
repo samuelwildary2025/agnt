@@ -182,9 +182,9 @@ def busca_produto_tool(telefone: str, query: str) -> str:
         token_set = set(tokens)
         strog_tokens = {"strogonoff", "strogonof", "estrogonoff", "estrogonof"}
         if token_set & strog_tokens:
-            if "frango" in token_set or "galinha" in token_set:
-                return "frango para strogonoff"
-            return "carne para strogonoff"
+            if "carne" in token_set or "boi" in token_set or "bovina" in token_set:
+                return "strogonoff kg"
+            return "strogonoff kg"
         if "danone" in token_set and ("ninho" in token_set or "cartela" in token_set):
             return "iogurte polpa ninho bdj 540g"
         if "danoninho" in token_set or ("cartela" in token_set and "iogurte" in token_set):

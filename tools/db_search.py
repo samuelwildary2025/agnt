@@ -187,6 +187,8 @@ def _apply_term_translations(query: str) -> str:
         return "iogurte polpa ninho bdj 540g"
     if "cartela" in q_no_acc and ("danone" in q_no_acc or "danoninho" in q_no_acc):
         return "iogurte polpa ninho bdj 540g"
+    if re.search(r"\b(carne|boi|bovina)\b", q_no_acc) and re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_no_acc):
+        return "strogonoff kg"
 
     q_low = q.lower()
     tokens = q_low.split(" ")
