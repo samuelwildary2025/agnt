@@ -1213,6 +1213,7 @@ def get_saved_address(telefone: str) -> Optional[str]:
 # ============================================
 
 SUGGESTIONS_TTL = 600  # 10 minutos
+SUGGESTIONS_MAX_ITEMS = 30
 
 def suggestions_key(telefone: str) -> str:
     """Chave para armazenar produtos sugeridos."""
@@ -1249,17 +1250,48 @@ def save_suggestions(telefone: str, products: List[Dict]) -> bool:
             except:
                 pass
                 
+        def _safe_float(v, default=0.0):
+            try:
+                if v is None:
+                    return default
+                return float(v)
+            except Exception:
+                return default
+
         # 2. Merge com novos (deduplicando por nome)
         # Mapa para deduplicar: chave = nome_lower
-        prod_map = {p.get("nome", "").lower(): p for p in existing_products}
+        prod_map = {str(p.get("nome", "")).strip().lower(): p for p in existing_products if isinstance(p, dict)}
         
         for new_p in products:
-            nome = new_p.get("nome", "").lower()
+            if not isinstance(new_p, dict):
+                continue
+            nome = str(new_p.get("nome", "")).strip().lower()
+            if not nome:
+                continue
             # Sobrescreve anterior se existir (assumindo que o novo é mais recente/melhor)
             # Ou mantém ambos? Melhor sobrescrever se for o mesmo produto para atualizar preço
-            prod_map[nome] = new_p
+            prev = prod_map.get(nome)
+            if prev is None:
+                prod_map[nome] = new_p
+            else:
+                prev_ok = bool(prev.get("match_ok"))
+                new_ok = bool(new_p.get("match_ok"))
+                prev_score = _safe_float(prev.get("match_score"), 0.0)
+                new_score = _safe_float(new_p.get("match_score"), 0.0)
+                # Mantém o melhor candidato por produto.
+                if (new_ok and not prev_ok) or (new_ok == prev_ok and new_score >= prev_score):
+                    prod_map[nome] = new_p
             
         final_list = list(prod_map.values())
+        # Prioriza correspondências confiáveis e corta ruído para evitar poluição.
+        final_list.sort(
+            key=lambda p: (
+                1 if bool(p.get("match_ok")) else 0,
+                _safe_float(p.get("match_score"), 0.0),
+            ),
+            reverse=True,
+        )
+        final_list = final_list[:SUGGESTIONS_MAX_ITEMS]
         
         # Salvar como JSON
         client.set(key, json.dumps(final_list, ensure_ascii=False), ex=SUGGESTIONS_TTL)

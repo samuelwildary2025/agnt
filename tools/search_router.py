@@ -85,9 +85,10 @@ def _save_suggestions_for_phone(telefone: str, query: str, rows: List[Dict[str, 
                     "preco": _safe_float(r.get("preco"), 0.0),
                     "termo_busca": query,
                     "match_ok": bool(r.get("match_ok")),
+                    "match_score": _safe_float(r.get("match_score"), 0.0),
                 }
             )
-        save_suggestions(telefone, payload)
+        save_suggestions(telefone, payload[:6])
     except Exception as exc:
         logger.warning(f"Falha ao salvar sugestões do search_router: {exc}")
 

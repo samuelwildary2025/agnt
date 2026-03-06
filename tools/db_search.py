@@ -757,13 +757,22 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
         if telefone:
             try:
                 products_for_cache = []
-                for r in results:
+                ranked_for_cache = [r for r in results if isinstance(r, dict)]
+                ranked_for_cache.sort(
+                    key=lambda p: (
+                        1 if bool(p.get("match_ok")) else 0,
+                        _safe_float(p.get("match_score"), 0.0),
+                    ),
+                    reverse=True,
+                )
+                for r in ranked_for_cache[:6]:
                     products_for_cache.append(
                         {
                             "nome": r.get("nome") or "",
                             "preco": _safe_float(r.get("preco"), 0.0),
                             "termo_busca": q,
                             "match_ok": bool(r.get("match_ok")),
+                            "match_score": _safe_float(r.get("match_score"), 0.0),
                         }
                     )
                 save_suggestions(telefone, products_for_cache)

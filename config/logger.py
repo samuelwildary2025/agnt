@@ -26,6 +26,8 @@ def setup_logger(name: str, log_file: str = "logs/agente.log", level: str = "INF
     # Criar logger
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper()))
+    # Evita duplicação no stdout quando o root logger (uvicorn/gunicorn) também tem handlers.
+    logger.propagate = False
     
     # Evitar duplicação de handlers
     if logger.handlers:

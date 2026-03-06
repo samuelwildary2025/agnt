@@ -532,31 +532,37 @@ def add_item_tool(telefone: str, produto: str, quantidade: float = 1.0, observac
     
     # 0. TENTATIVA DE RECUPERAÇÃO DE PREÇO (Auto-Healing)
     # Se o agente esqueceu o preço (0.0), tentamos achar nas sugestões recentes
+    melhor_match = None
     if preco <= 0.01:
         sugestoes = get_suggestions(telefone)
         if sugestoes:
-            # Tentar match exato ou fuzzy
-            melhor_match = None
-            maior_score = 0
-            
+            melhor_score = 0.0
             for sug in sugestoes:
-                nome_sug = sug.get("nome", "").lower()
-                # Match exato de substring
-                if prod_lower in nome_sug or nome_sug in prod_lower:
-                    melhor_match = sug
-                    break
-                
-                # Match fuzzy (difflib)
+                if not isinstance(sug, dict):
+                    continue
+                nome_sug = str(sug.get("nome", "")).lower().strip()
+                if not nome_sug:
+                    continue
+
                 ratio = difflib.SequenceMatcher(None, prod_lower, nome_sug).ratio()
-                if ratio > 0.6 and ratio > maior_score:
-                    maior_score = ratio
+                if prod_lower in nome_sug or nome_sug in prod_lower:
+                    ratio += 0.18
+                if bool(sug.get("match_ok")):
+                    ratio += 0.08
+
+                if ratio > melhor_score:
+                    melhor_score = ratio
                     melhor_match = sug
-            
-            if melhor_match:
-                preco_recuperado = float(melhor_match.get("preco", 0.0))
+
+            # Limiar mais conservador para evitar casar produto errado por ruído.
+            if melhor_match and melhor_score >= 0.72:
+                preco_recuperado = float(melhor_match.get("preco", 0.0) or 0.0)
                 if preco_recuperado > 0:
                     preco = preco_recuperado
-                    logger.info(f"✨ [AUTO-HEAL] Preço recuperado para '{produto}': R$ {preco:.2f} (baseado em '{melhor_match.get('nome')}')")
+                    logger.info(
+                        f"✨ [AUTO-HEAL] Preço recuperado para '{produto}': R$ {preco:.2f} "
+                        f"(score={melhor_score:.2f}, base='{melhor_match.get('nome')}')"
+                    )
     
     # BLOQUEIO: Não permitir adicionar item sem preço válido
     if preco <= 0.01:
@@ -564,15 +570,9 @@ def add_item_tool(telefone: str, produto: str, quantidade: float = 1.0, observac
         return f"❌ Não consegui encontrar o preço de '{produto}'. Use busca_produto_tool para verificar o preço antes de adicionar."
     
     # Validar match_ok nas sugestões — se o produto não passou na validação, avisar
-    sugestoes_validacao = get_suggestions(telefone)
-    if sugestoes_validacao:
-        for sug in sugestoes_validacao:
-            nome_sug = sug.get("nome", "").lower()
-            if prod_lower in nome_sug or nome_sug in prod_lower:
-                if not sug.get("match_ok", True):
-                    logger.warning(f"⚠️ [ADD_ITEM] Produto '{produto}' tem match_ok=false. Pedindo confirmação.")
-                    return f"⚠️ '{produto}' não parece ser uma correspondência exata. Confirme com o cliente qual opção ele deseja antes de adicionar."
-                break
+    if melhor_match is not None and not bool(melhor_match.get("match_ok", True)):
+        logger.warning(f"⚠️ [ADD_ITEM] Produto '{produto}' tem match_ok=false. Pedindo confirmação.")
+        return f"⚠️ '{produto}' não parece ser uma correspondência exata. Confirme com o cliente qual opção ele deseja antes de adicionar."
     
     if unidades > 0 and quantidade <= 0.01:
          logger.warning(f"⚠️ [ADD_ITEM] Item '{produto}' com unidades={unidades} mas peso zerado. O LLM deveria ter calculado.")
@@ -1148,6 +1148,13 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
             "output": "Estou finalizando sua última solicitação. Me manda só um instante e eu já te respondo.",
             "error": "busy"
         }
+
+    # Evita vazamento de sugestões de turnos anteriores para o turno atual.
+    # Isso reduz adição de itens "fantasma" quando o cliente manda um novo texto.
+    try:
+        clear_suggestions(telefone)
+    except Exception:
+        pass
     
     # 1. Extrair URL de imagem se houver
     image_url = None
