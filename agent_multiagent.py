@@ -79,7 +79,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
 
     Usa chamadas na API FastAPI local.
     """
-    from tools.db_search import search_products_db
+    from tools.search_router import search_products
     import unicodedata
     import json
     import difflib
@@ -265,7 +265,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
         return " ".join(words[:3])
 
     def _run_search(q: str) -> tuple[str, list]:
-        raw = search_products_db(q, telefone=telefone)
+        raw = search_products(q, telefone=telefone)
         try:
             parsed = json.loads(raw)
             if isinstance(parsed, list):

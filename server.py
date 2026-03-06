@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 import requests
+import json
 from datetime import datetime
 import time
 import random
@@ -21,6 +22,10 @@ from arq.connections import RedisSettings
 from urllib.parse import urlparse
 from apscheduler.schedulers.background import BackgroundScheduler
 from scripts.populate_products_db import sync_products_db
+try:
+    from scripts.sync_typesense import sync_typesense_from_postgres
+except Exception:
+    sync_typesense_from_postgres = None
 
 # Tenta importar pypdf para leitura de comprovantes
 try:
@@ -75,6 +80,50 @@ class AgentResponse(BaseModel):
     error: Optional[str] = None
 
 # --- Helpers ---
+
+_REDACT_KEYS = {
+    "authorization",
+    "token",
+    "apikey",
+    "api_key",
+    "password",
+    "secret",
+    "mediaBase64",
+    "base64",
+}
+
+
+def _sanitize_for_log(value: Any, depth: int = 0) -> Any:
+    if depth > 4:
+        return "[...]"
+    if isinstance(value, dict):
+        out = {}
+        for k, v in value.items():
+            key_low = str(k).lower()
+            if key_low in _REDACT_KEYS or "base64" in key_low:
+                out[k] = "[REDACTED]"
+            else:
+                out[k] = _sanitize_for_log(v, depth + 1)
+        return out
+    if isinstance(value, list):
+        if len(value) > 10:
+            return [_sanitize_for_log(x, depth + 1) for x in value[:10]] + ["..."]
+        return [_sanitize_for_log(x, depth + 1) for x in value]
+    if isinstance(value, str):
+        if len(value) > 400:
+            return value[:400] + "...[truncated]"
+        return value
+    return value
+
+
+def _sync_search_indexes() -> None:
+    """Sincroniza catálogo em Postgres e Typesense."""
+    sync_products_db()
+    if settings.typesense_enabled and sync_typesense_from_postgres:
+        try:
+            sync_typesense_from_postgres()
+        except Exception as exc:
+            logger.warning(f"Falha no sync Typesense: {exc}")
 
 def process_pdf(message_id: str) -> tuple[Optional[str], Optional[str]]:
     """
@@ -1068,13 +1117,13 @@ async def startup_event():
         )
         logger.info("✅ ARQ Pool inicializado com sucesso")
         
-        # Iniciar Scheduler de Sincronização de Produtos (1x por hora)
+        # Iniciar Scheduler de Sincronização de Catálogo (Postgres + Typesense)
         if not scheduler.running:
-            scheduler.add_job(sync_products_db, 'interval', hours=1, id='sync_products_job')
+            scheduler.add_job(_sync_search_indexes, 'interval', hours=1, id='sync_products_job')
             scheduler.start()
             # Rodar uma vez logo no início (em thread separada para não bloquear startup)
-            threading.Thread(target=sync_products_db, daemon=True).start()
-            logger.info("⏰ Scheduler iniciado: Sincronização de produtos agendada para cada 1 hora.")
+            threading.Thread(target=_sync_search_indexes, daemon=True).start()
+            logger.info("⏰ Scheduler iniciado: sincronização de catálogo agendada para cada 1 hora.")
         
         return
     arq_pool = await create_pool(
@@ -1087,13 +1136,13 @@ async def startup_event():
     )
     logger.info("✅ ARQ Pool inicializado com sucesso")
 
-    # Iniciar Scheduler de Sincronização de Produtos (1x por hora)
+    # Iniciar Scheduler de Sincronização de Catálogo (Postgres + Typesense)
     if not scheduler.running:
-        scheduler.add_job(sync_products_db, 'interval', hours=1, id='sync_products_job')
+        scheduler.add_job(_sync_search_indexes, 'interval', hours=1, id='sync_products_job')
         scheduler.start()
         # Rodar uma vez logo no início (em thread separada para não bloquear startup)
-        threading.Thread(target=sync_products_db, daemon=True).start()
-        logger.info("⏰ Scheduler iniciado: Sincronização de produtos agendada para cada 1 hora.")
+        threading.Thread(target=_sync_search_indexes, daemon=True).start()
+        logger.info("⏰ Scheduler iniciado: sincronização de catálogo agendada para cada 1 hora.")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -1384,8 +1433,11 @@ async def webhook(req: Request, tasks: BackgroundTasks):
     try:
         pl = await req.json()
         
-        # Log bruto para capturar segredos do payload
-        logger.info(f"📥 RAW: {pl.get('event', '?')} | Keys: {list(pl.keys())} | DataKeys: {list(pl.get('data', {}).keys()) if isinstance(pl.get('data'), dict) else '?'}")
+        # Log sanitizado para evitar vazar base64/tokens/PII sensível.
+        safe_payload = _sanitize_for_log(pl)
+        logger.info(
+            f"📥 Webhook recebido: event={pl.get('event', '?')} | payload={json.dumps(safe_payload, ensure_ascii=False)[:800]}"
+        )
         
         data = _extract_incoming(pl)
         tel, txt, from_me = data["telefone"], data["mensagem_texto"], data["from_me"]

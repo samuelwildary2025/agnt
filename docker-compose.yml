@@ -13,11 +13,17 @@ services:
       - POSTGRES_CONNECTION_STRING=postgresql://samuelwildary:85885885@sistema_db-agente:5432/db-agente?sslmode=disable
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - TYPESENSE_ENABLED=true
+      - TYPESENSE_NODES=http://typesense:8108
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-xyz}
+      - TYPESENSE_COLLECTION=produtos
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      typesense:
+        condition: service_started
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
@@ -62,10 +68,27 @@ services:
     networks:
       - agente-network
 
+  # Typesense (Busca tolerante a erro de digitação)
+  typesense:
+    image: typesense/typesense:0.26.0
+    container_name: agente-typesense
+    command: >
+      --data-dir /data
+      --api-key=${TYPESENSE_API_KEY:-xyz}
+      --enable-cors
+    volumes:
+      - typesense_data:/data
+    ports:
+      - "8108:8108"
+    networks:
+      - agente-network
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  typesense_data:
     driver: local
 
 networks:

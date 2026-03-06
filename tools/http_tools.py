@@ -4,6 +4,7 @@ Ferramentas HTTP para interação com a API do Supermercado
 import requests
 import json
 from typing import Dict, Any, Optional
+from urllib.parse import urlparse
 from config.settings import settings
 from config.logger import setup_logger
 
@@ -56,6 +57,24 @@ def estoque(url: str) -> str:
         JSON string com informações do produto ou mensagem de erro
     """
     logger.info(f"Consultando estoque: {url}")
+
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            msg = "Erro: URL inválida para consulta de estoque."
+            logger.warning(f"🚫 Bloqueado URL inválida em estoque(): {url}")
+            return msg
+
+        allowed_hosts = settings.allowed_outbound_hosts
+        host = parsed.hostname.lower()
+        if allowed_hosts and host not in allowed_hosts:
+            msg = "Erro: Host não permitido para consulta de estoque."
+            logger.warning(f"🚫 Bloqueado host fora da allowlist em estoque(): {host}")
+            return msg
+    except Exception:
+        msg = "Erro: não foi possível validar a URL de estoque."
+        logger.warning(f"🚫 Falha ao validar URL em estoque(): {url}")
+        return msg
     
     try:
         response = requests.get(
@@ -274,7 +293,20 @@ def alterar(telefone: str, json_body: str) -> str:
         error_msg = "Erro: O corpo da requisição não é um JSON válido."
         logger.error(error_msg)
         return error_msg
+    except requests.exceptions.Timeout:
+        error_msg = "Erro: Timeout ao atualizar pedido."
+        logger.error(error_msg)
+        return error_msg
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"Erro HTTP ao atualizar pedido: {e.response.status_code} - {e.response.text}"
+        logger.error(error_msg)
+        return error_msg
+    except requests.exceptions.RequestException as e:
         error_msg = f"Erro ao atualizar pedido: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+    except Exception as e:
+        error_msg = f"Erro inesperado ao atualizar pedido: {str(e)}"
         logger.error(error_msg)
         return error_msg
 

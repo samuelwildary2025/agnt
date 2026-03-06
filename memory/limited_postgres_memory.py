@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any
 import json
 import logging
+import threading
 from langchain_community.chat_message_histories import PostgresChatMessageHistory
 from langchain_core.messages import BaseMessage, message_to_dict, messages_from_dict
 from langchain_core.chat_history import BaseChatMessageHistory
@@ -23,6 +24,9 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
     Faz a inserção manual para garantir persistência (COMMIT explícito).
     """
     
+    _schema_cache_lock = threading.Lock()
+    _schema_checked: set[tuple[str, str]] = set()
+
     def __init__(
         self,
         session_id: str,
@@ -57,6 +61,11 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
         Verifica se a tabela tem a coluna created_at e a cria se necessário.
         Isso corrige o erro de 'column created_at does not exist'.
         """
+        cache_key = (self.connection_string, self.table_name)
+        with self._schema_cache_lock:
+            if cache_key in self._schema_checked:
+                return
+
         try:
             table_ident = sql.Identifier(self.table_name)
             index_ident = sql.Identifier(f"idx_{self.table_name}_created_at".replace("-", "_"))
@@ -80,6 +89,8 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
                     
                     conn.commit()
                     logger.info(f"✅ Schema verificado: coluna 'created_at' garantida na tabela '{self.table_name}'.")
+                    with self._schema_cache_lock:
+                        self._schema_checked.add(cache_key)
                     
         except Exception as e:
             logger.error(f"⚠️ Erro ao verificar schema (pode ser ignorado se o banco estiver inacessível no init): {e}")

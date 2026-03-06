@@ -9,7 +9,7 @@ import json
 import re
 from typing import List, Optional
 
-from tools.db_search import search_products_db
+from tools.search_router import search_products
 
 
 def _split_terms(query: str) -> List[str]:
@@ -22,7 +22,7 @@ def _split_terms(query: str) -> List[str]:
 
 def search_specialist_tool(query: str, telefone: Optional[str] = None, limit: int = 8) -> str:
     """Legacy tool name kept for compatibility with old tests/scripts."""
-    return search_products_db(query=query, limit=limit, telefone=telefone)
+    return search_products(query=query, limit=limit, telefone=telefone)
 
 
 def analista_produtos_tool(query: str, telefone: Optional[str] = None, limit: int = 8) -> str:
@@ -37,7 +37,7 @@ def analista_produtos_tool(query: str, telefone: Optional[str] = None, limit: in
 
     aggregated = []
     for term in terms:
-        raw = search_products_db(query=term, limit=limit, telefone=telefone)
+        raw = search_products(query=term, limit=limit, telefone=telefone)
         try:
             items = json.loads(raw)
             if isinstance(items, list):
@@ -48,4 +48,3 @@ def analista_produtos_tool(query: str, telefone: Optional[str] = None, limit: in
             aggregated.append({"termo": term, "resultados": []})
 
     return json.dumps(aggregated, ensure_ascii=False)
-

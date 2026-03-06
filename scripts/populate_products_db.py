@@ -189,6 +189,15 @@ def sync_products_db():
         
         conn.commit()
         logger.info(f"Successfully synced {len(values)} products to database.")
+
+        # Opcional: após sincronizar Postgres, atualizar índice no Typesense.
+        try:
+            from config.settings import settings as app_settings
+            if getattr(app_settings, "typesense_enabled", False):
+                from scripts.sync_typesense import sync_typesense_from_postgres
+                sync_typesense_from_postgres()
+        except Exception as e:
+            logger.warning(f"Typesense sync pós-DB ignorado: {e}")
         
     except Exception as e:
         logger.error(f"Sync failed during database operation: {e}")

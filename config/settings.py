@@ -4,7 +4,8 @@ Carrega variáveis de ambiente usando Pydantic Settings
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
-from typing import Optional
+from typing import Optional, Set
+from urllib.parse import urlparse
 
 
 class Settings(BaseSettings):
@@ -42,6 +43,18 @@ class Settings(BaseSettings):
     vector_search_mode: str = "exact"
     vector_search_fallback: bool = True
     vector_search_term_mappings: bool = False
+
+    # Typesense (busca de produtos)
+    typesense_enabled: bool = False
+    typesense_nodes: str = "http://typesense:8108"
+    typesense_api_key: Optional[str] = None
+    typesense_collection: str = "produtos"
+    typesense_timeout_seconds: float = 2.0
+    typesense_query_by: str = "nome,descricao,categoria,codigo_barras"
+    typesense_num_typos: int = 2
+    typesense_drop_tokens_threshold: int = 1
+    typesense_batch_size: int = 500
+    typesense_ssl_verify: bool = False
     
     # Redis
     redis_url_override: Optional[str] = Field(default=None, alias="REDIS_URL")
@@ -92,6 +105,7 @@ class Settings(BaseSettings):
 
     product_context_path: Optional[str] = "prompts/product_context.json"
     term_translations_path: str = "prompts/term_translations.json"
+    http_allowed_hosts: str = ""
 
     @field_validator(
         "openai_api_base",
@@ -121,6 +135,40 @@ class Settings(BaseSettings):
             return self.redis_url_override
         auth = f":{self.redis_password}@" if self.redis_password else ""
         return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    @property
+    def typesense_nodes_list(self) -> list[str]:
+        raw = (self.typesense_nodes or "").strip()
+        if not raw:
+            return []
+        return [x.strip() for x in raw.split(",") if x.strip()]
+
+    @property
+    def allowed_outbound_hosts(self) -> Set[str]:
+        hosts: Set[str] = set()
+
+        def _add_host(url: Optional[str]) -> None:
+            if not url:
+                return
+            try:
+                parsed = urlparse(url.strip())
+                if parsed.hostname:
+                    hosts.add(parsed.hostname.lower())
+            except Exception:
+                return
+
+        _add_host(self.supermercado_base_url)
+        _add_host(self.estoque_ean_base_url)
+        _add_host(self.uazapi_base_url)
+
+        raw = (self.http_allowed_hosts or "").strip()
+        if raw:
+            for item in raw.split(","):
+                host = item.strip().lower()
+                if host:
+                    hosts.add(host)
+
+        return hosts
 
 # Instância global de configurações
 settings = Settings()
