@@ -620,7 +620,7 @@ def get_order_context(telefone: str, mensagem: str = "") -> str:
     if status == "building":
         # Ainda montando pedido - renovar TTL
         refresh_session_ttl(telefone)
-        return ""
+        return "[SESSÃO] Pedido em andamento. Não cumprimente novamente; responda apenas com atualização objetiva."
     
     elif status == "sent":
         # Pedido já foi enviado - está na janela de modificação (15min)
