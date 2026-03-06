@@ -687,21 +687,31 @@ def search_products_db(query: str, limit: int = 8, telefone: Optional[str] = Non
 
             # PRIORIZAÇÃO ESPECÍFICA: "bandeja/cartela de ovo"
             if re.search(r"\b(bandeja|cartela)\b", q_no_acc) and re.search(r"\bovos?\b", q_no_acc):
+                ovos_20 = []
                 ovo_branco = []
                 ovos = []
                 others = []
                 for r in results:
                     nome_no_acc = _strip_accents((r.get("nome") or "").lower())
-                    if "ovo branco" in nome_no_acc:
+                    is_20_pack = bool(
+                        re.search(r"\b20\b", nome_no_acc)
+                        or "c/ 20" in nome_no_acc
+                        or "c/20" in nome_no_acc
+                        or "20un" in nome_no_acc
+                        or "20 un" in nome_no_acc
+                    )
+                    if "ovo branco" in nome_no_acc and is_20_pack:
+                        ovos_20.append(r)
+                    elif "ovo branco" in nome_no_acc:
                         ovo_branco.append(r)
                     elif "ovo" in nome_no_acc:
                         ovos.append(r)
                     else:
                         others.append(r)
-                prioritized = ovo_branco + ovos + others
+                prioritized = ovos_20 + ovo_branco + ovos + others
                 if prioritized:
                     results = prioritized
-                    logger.info("⬆️ Priorização: ovo branco/bandeja movido para o topo")
+                    logger.info("⬆️ Priorização: ovo branco c/20 movido para o topo")
 
             # PRIORIZAÇÃO 1: Frango → abatido sempre primeiro
             PRIORITY_BOOST = {
