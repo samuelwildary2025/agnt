@@ -7,6 +7,7 @@ from langchain_core.chat_history import BaseChatMessageHistory
 try:
     import psycopg2
     import psycopg2.extras
+    from psycopg2 import sql
 except ImportError:
     # Fallback para psycopg 3.x
     import psycopg as psycopg2
@@ -57,20 +58,25 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
         Isso corrige o erro de 'column created_at does not exist'.
         """
         try:
+            table_ident = sql.Identifier(self.table_name)
+            index_ident = sql.Identifier(f"idx_{self.table_name}_created_at".replace("-", "_"))
             # Usar conexão passageira para verificar schema
             with psycopg2.connect(self.connection_string) as conn:
                 with conn.cursor() as cursor:
                     # Adicionar coluna created_at se não existir
-                    cursor.execute(f"""
-                        ALTER TABLE {self.table_name} 
-                        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-                    """)
+                    cursor.execute(
+                        sql.SQL(
+                            "ALTER TABLE {} ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                        ).format(table_ident)
+                    )
                     
                     # Opcional: Index para performance
-                    cursor.execute(f"""
-                        CREATE INDEX IF NOT EXISTS idx_created_at 
-                        ON {self.table_name}(created_at);
-                    """)
+                    cursor.execute(
+                        sql.SQL("CREATE INDEX IF NOT EXISTS {} ON {}(created_at)").format(
+                            index_ident,
+                            table_ident,
+                        )
+                    )
                     
                     conn.commit()
                     logger.info(f"✅ Schema verificado: coluna 'created_at' garantida na tabela '{self.table_name}'.")
@@ -98,10 +104,9 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
             cursor = conn.cursor()
             
             # Query de inserção direta
-            query = f"""
-                INSERT INTO {self.table_name} (session_id, message)
-                VALUES (%s, %s)
-            """
+            query = sql.SQL("INSERT INTO {} (session_id, message) VALUES (%s, %s)").format(
+                sql.Identifier(self.table_name)
+            )
             
             cursor.execute(query, (self.session_id, msg_json))
             conn.commit() # <--- O PULO DO GATO: Commit explícito
@@ -131,7 +136,12 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
             try:
                 with psycopg2.connect(self.connection_string) as conn:
                     with conn.cursor() as cursor:
-                        cursor.execute(f"DELETE FROM {self.table_name} WHERE session_id = %s", (self.session_id,))
+                        cursor.execute(
+                            sql.SQL("DELETE FROM {} WHERE session_id = %s").format(
+                                sql.Identifier(self.table_name)
+                            ),
+                            (self.session_id,),
+                        )
                         conn.commit()
             except Exception as e:
                 logger.error(f"Erro ao limpar histórico: {e}")
@@ -153,11 +163,12 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
         try:
             with psycopg2.connect(self.connection_string) as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute(f"""
-                        SELECT message FROM {self.table_name} 
-                        WHERE session_id = %s 
-                        ORDER BY created_at ASC
-                    """, (self.session_id,))
+                    cursor.execute(
+                        sql.SQL(
+                            "SELECT message FROM {} WHERE session_id = %s ORDER BY created_at ASC"
+                        ).format(sql.Identifier(self.table_name)),
+                        (self.session_id,),
+                    )
                     
                     rows = cursor.fetchall()
                     messages = []
@@ -200,8 +211,27 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
             "não identifiquei", "não consegui identificar", 
             "informar o nome principal", "desculpe, não", "pode informar"
         ]
-        
-        recent_text = " ".join([msg.content.lower() for msg in recent_messages[-3:]])
+
+        def _to_text(msg: BaseMessage) -> str:
+            content = getattr(msg, "content", "")
+            if isinstance(content, str):
+                return content.lower()
+            if isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, str):
+                        parts.append(block)
+                    elif isinstance(block, dict):
+                        txt = block.get("text")
+                        if isinstance(txt, str):
+                            parts.append(txt)
+                return " ".join(parts).lower()
+            if isinstance(content, dict):
+                txt = content.get("text")
+                return txt.lower() if isinstance(txt, str) else str(content).lower()
+            return str(content).lower()
+
+        recent_text = " ".join(_to_text(msg) for msg in recent_messages[-3:])
         confusion_count = sum(1 for pattern in confusion_patterns if pattern in recent_text)
         
         return confusion_count >= 2
@@ -211,7 +241,12 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
         try:
             with psycopg2.connect(self.connection_string) as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute(f"SELECT COUNT(*) FROM {self.table_name} WHERE session_id = %s", (self.session_id,))
+                    cursor.execute(
+                        sql.SQL("SELECT COUNT(*) FROM {} WHERE session_id = %s").format(
+                            sql.Identifier(self.table_name)
+                        ),
+                        (self.session_id,),
+                    )
                     return cursor.fetchone()[0]
         except Exception:
             return 0

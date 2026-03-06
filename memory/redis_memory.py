@@ -1,6 +1,7 @@
 import json
 import time
-from typing import List, Optional
+from threading import Lock
+from typing import Dict, List, Optional, Tuple
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import (
     BaseMessage,
@@ -23,6 +24,9 @@ class RedisChatMessageHistory(BaseChatMessageHistory):
     - Se o TTL expirar, a memória é apagada automaticamente (fim da sessão).
     """
     
+    _fallback_store: Dict[str, Tuple[float, List[str]]] = {}
+    _fallback_lock = Lock()
+
     def __init__(self, session_id: str, ttl: int = 900):
         self.session_id = session_id
         self.key = f"session:memory:{session_id}"
@@ -30,6 +34,27 @@ class RedisChatMessageHistory(BaseChatMessageHistory):
         
         # Conexão Redis
         self.redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+
+    def _fallback_get(self) -> List[str]:
+        now = time.time()
+        with self._fallback_lock:
+            expires_at, messages = self._fallback_store.get(self.key, (0.0, []))
+            if expires_at <= now:
+                self._fallback_store.pop(self.key, None)
+                return []
+            return list(messages)
+
+    def _fallback_append(self, msg_json: str) -> None:
+        now = time.time()
+        with self._fallback_lock:
+            _, messages = self._fallback_store.get(self.key, (0.0, []))
+            updated = list(messages)
+            updated.append(msg_json)
+            self._fallback_store[self.key] = (now + self.ttl, updated)
+
+    def _fallback_clear(self) -> None:
+        with self._fallback_lock:
+            self._fallback_store.pop(self.key, None)
 
     @property
     def messages(self) -> List[BaseMessage]:
@@ -46,7 +71,14 @@ class RedisChatMessageHistory(BaseChatMessageHistory):
             
         except Exception as e:
             print(f"❌ Erro ao ler memória Redis para {self.session_id}: {e}")
-            return []
+            raw_messages = self._fallback_get()
+            if not raw_messages:
+                return []
+            try:
+                messages_dicts = [json.loads(m) for m in raw_messages]
+                return messages_from_dict(messages_dicts)
+            except Exception:
+                return []
 
     def add_message(self, message: BaseMessage) -> None:
         """Adiciona uma mensagem à sessão e renova o TTL."""
@@ -75,6 +107,7 @@ class RedisChatMessageHistory(BaseChatMessageHistory):
             
         except Exception as e:
             print(f"❌ Erro ao salvar mensagem no Redis para {self.session_id}: {e}")
+            self._fallback_append(msg_json)
 
     def clear(self) -> None:
         """Limpa a memória da sessão explicitamente."""
@@ -82,3 +115,4 @@ class RedisChatMessageHistory(BaseChatMessageHistory):
             self.redis_client.delete(self.key)
         except Exception as e:
             print(f"❌ Erro ao limpar memória Redis para {self.session_id}: {e}")
+        self._fallback_clear()

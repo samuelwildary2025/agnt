@@ -1414,7 +1414,7 @@ async def webhook(req: Request, tasks: BackgroundTasks):
 @app.post("/message")
 async def direct_msg(msg: WhatsAppMessage):
     try:
-        res = run_agent(msg.telefone, msg.mensagem)
+        res = await asyncio.to_thread(run_agent, msg.telefone, msg.mensagem)
         return AgentResponse(success=True, response=res["output"], telefone=msg.telefone, timestamp="")
     except Exception as e:
         return AgentResponse(success=False, response="", telefone="", error=str(e))

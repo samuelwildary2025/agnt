@@ -55,14 +55,14 @@ async def process_message(
             
             for mid in mids:
                 if mid:
-                    whatsapp.mark_as_read(telefone, message_id=mid)
+                    await asyncio.to_thread(whatsapp.mark_as_read, telefone, message_id=mid)
                     # Pequeno delay entre requests para não floodar (se forem muitos)
                     if len(mids) > 1: await asyncio.sleep(0.1)
             
             await asyncio.sleep(0.8)  # Delay tático para UX
         
         # 3. Começar a "Digitar"
-        whatsapp.send_presence(num, "composing")
+        await asyncio.to_thread(whatsapp.send_presence, num, "composing")
         
         # 3.5 Processar mídia se houver placeholder ([MEDIA:TYPE:ID])
         media_match = re.search(r"\[MEDIA:(IMAGE|AUDIO|DOCUMENT):([^\]]+)\]", mensagem, re.IGNORECASE)
@@ -78,7 +78,7 @@ async def process_message(
                     if media_type == "image":
                         # Importar função de análise do server.py
                         from server import analyze_image
-                        analysis = analyze_image(media_id, None)
+                        analysis = await asyncio.to_thread(analyze_image, media_id, None)
                         if analysis:
                             replacement_text = f"[Análise da imagem]: {analysis}"
                             logger.info(f"✅ Imagem analisada: {analysis[:50]}...")
@@ -86,7 +86,7 @@ async def process_message(
                             replacement_text = "[Imagem recebida, mas não foi possível analisar]"
                     elif media_type == "audio":
                         from server import transcribe_audio
-                        transcription = transcribe_audio(media_id)
+                        transcription = await asyncio.to_thread(transcribe_audio, media_id)
                         if transcription:
                             replacement_text = f"[Áudio]: {transcription}"
                             logger.info(f"✅ Áudio transcrito: {transcription[:50]}...")
@@ -94,7 +94,7 @@ async def process_message(
                             replacement_text = "[Áudio recebido, mas não foi possível transcrever]"
                     elif media_type == "document":
                         from server import process_pdf
-                        extracted_text, _ = process_pdf(media_id)
+                        extracted_text, _ = await asyncio.to_thread(process_pdf, media_id)
                         if extracted_text:
                             replacement_text = f"[Conteúdo PDF]: {extracted_text[:1200]}"
                         else:
@@ -108,16 +108,15 @@ async def process_message(
         
         # 4. Processamento IA (síncrono - run_agent não é async)
         # Rodamos em thread_pool para não bloquear o event loop
-        loop = asyncio.get_event_loop()
-        res = await loop.run_in_executor(None, run_agent, telefone, mensagem)
+        res = await asyncio.to_thread(run_agent, telefone, mensagem)
         txt = res.get("output", "Erro ao processar.")
         
         # 5. Parar "Digitar"
-        whatsapp.send_presence(num, "paused")
+        await asyncio.to_thread(whatsapp.send_presence, num, "paused")
         await asyncio.sleep(0.5)
         
         # 6. Enviar Mensagem (também síncrono)
-        await loop.run_in_executor(None, _send_whatsapp_message, telefone, txt)
+        await asyncio.to_thread(_send_whatsapp_message, telefone, txt)
         
         logger.info(f"✅ Mensagem processada com sucesso: {telefone}")
         return "success"
@@ -126,8 +125,8 @@ async def process_message(
         logger.error(f"❌ Erro ao processar mensagem de {telefone}: {e}", exc_info=True)
         # Parar digitando em caso de erro
         try:
-            whatsapp.send_presence(telefone, "paused")
-        except:
+            await asyncio.to_thread(whatsapp.send_presence, num, "paused")
+        except Exception:
             pass
         raise  # ARQ vai fazer retry automático
 

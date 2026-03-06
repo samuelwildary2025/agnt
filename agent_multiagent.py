@@ -78,38 +78,187 @@ def busca_produto_tool(telefone: str, query: str) -> str:
     Usa chamadas na API FastAPI local.
     """
     from tools.db_search import search_products_db
+    import unicodedata
     import json
-    
-    # 1. Busca Original
-    resultado_json = search_products_db(query, telefone=telefone)
-    resultados = json.loads(resultado_json)
-    
-    # Analisar qualidade dos resultados
-    melhor_score = 0.0
-    if resultados:
-        melhor_score = max([r.get("match_score", 0.0) for r in resultados])
-    
-    # 2. Se score baixo (< 0.6) ou vazio, tenta limpar a query (Retry Automático)
-    if not resultados or melhor_score < 0.6:
-        # Tenta remover termos comuns que atrapalham (marcas, medidas, etc) se a query for longa
-        termos_limpeza = ["de", "da", "do", "com", "sem", "g", "kg", "ml", "litros", "unidade"]
-        query_limpa = " ".join([p for p in query.split() if p.lower() not in termos_limpeza])
-        
-        if query_limpa != query and len(query_limpa) > 3:
-            logger.info(f"🔄 Retry Busca Inteligente: '{query}' -> '{query_limpa}'")
-            resultado_retry_json = search_products_db(query_limpa, telefone=telefone)
-            resultados_retry = json.loads(resultado_retry_json)
-            
-            # Se o retry trouxe algo melhor, usa ele
-            score_retry = 0.0
-            if resultados_retry:
-                score_retry = max([r.get("match_score", 0.0) for r in resultados_retry])
-            
-            if score_retry > melhor_score:
+
+    def _strip_accents(text: str) -> str:
+        return "".join(
+            ch for ch in unicodedata.normalize("NFKD", text or "")
+            if not unicodedata.combining(ch)
+        )
+
+    def _query_quality(items: list) -> tuple[float, bool]:
+        if not items:
+            return 0.0, False
+        best = max(float(i.get("match_score", 0.0) or 0.0) for i in items)
+        any_ok = any(bool(i.get("match_ok")) for i in items)
+        return best, any_ok
+
+    def _tokens_for_intent(text: str) -> list[str]:
+        t = _strip_accents((text or "").lower())
+        t = re.sub(r"[^a-z0-9]+", " ", t)
+        raw = [x for x in t.split() if x]
+        stop = {
+            "de", "da", "do", "das", "dos", "com", "sem", "para", "por", "no", "na",
+            "o", "a", "os", "as", "um", "uma", "uns", "umas",
+            "kg", "g", "gr", "grama", "gramas", "l", "lt", "litro", "litros", "ml",
+            "un", "unid", "unidade", "unidades",
+        }
+        out = []
+        for tk in raw:
+            if tk in stop:
+                continue
+            if tk.isdigit() or re.fullmatch(r"\d+(kg|g|ml|l|lt)", tk):
+                continue
+            out.append(tk)
+        return out
+
+    def _needs_confirmation(items: list, original_query: str) -> tuple[bool, str]:
+        candidates = [i for i in items if isinstance(i, dict) and "nome" in i]
+        if not candidates:
+            return False, ""
+        ranked = sorted(candidates, key=lambda i: float(i.get("match_score", 0.0) or 0.0), reverse=True)
+        best = float(ranked[0].get("match_score", 0.0) or 0.0)
+        second = float(ranked[1].get("match_score", 0.0) or 0.0) if len(ranked) > 1 else 0.0
+        margin = best - second
+
+        q_tokens = set(_tokens_for_intent(original_query))
+        n_tokens = set(_tokens_for_intent(ranked[0].get("nome", "")))
+        coverage = (len(q_tokens & n_tokens) / max(len(q_tokens), 1)) if q_tokens else 1.0
+
+        top3 = ranked[:3]
+        cat_set = set()
+        for r in top3:
+            cat = _strip_accents((r.get("categoria", "") or "").lower())
+            if "limpeza" in cat:
+                cat = "limpeza"
+            elif "higiene" in cat:
+                cat = "higiene"
+            elif "bebida" in cat:
+                cat = "bebidas"
+            elif "acougue" in cat or "carne" in cat:
+                cat = "acougue"
+            elif "horti" in cat or "fruta" in cat or "legume" in cat:
+                cat = "hortifruti"
+            cat_set.add(cat or "outros")
+
+        low_score = best < 0.68
+        low_margin = len(ranked) > 1 and margin < 0.08
+        weak_coverage = len(q_tokens) >= 2 and coverage < 0.50
+        mixed_categories = len(cat_set) >= 2 and len(top3) >= 2
+
+        if low_score and weak_coverage:
+            return True, "score baixo e baixa cobertura dos termos do cliente"
+        if low_margin and (weak_coverage or mixed_categories):
+            return True, "candidatos muito empatados para a intencao"
+        return False, ""
+
+    def _infer_intent_query(raw: str) -> str:
+        q_norm = _strip_accents((raw or "").lower())
+        tokens = q_norm.split()
+        if not tokens:
+            return ""
+
+        token_set = set(tokens)
+        strog_tokens = {"strogonoff", "strogonof", "estrogonoff", "estrogonof"}
+        if token_set & strog_tokens:
+            if "frango" in token_set or "galinha" in token_set:
+                return "frango para strogonoff"
+            return "carne para strogonoff"
+
+        intent_map = {
+            "pirulito": {"pop", "pirulito", "pops"},
+            "refrigerante": {"coca", "cocacola", "pepsi", "guarana", "fanta", "sprite", "refri", "refrigerante"},
+            "cerveja": {"cerveja", "heineken", "skol", "brahma", "budweiser", "itaipava", "antarctica"},
+            "sabao po": {"sabao", "po", "omo", "tixan", "brilhante", "lava"},
+            "detergente": {"detergente", "limpol", "ype", "ipe", "minuano"},
+            "fralda descartavel": {"fralda", "pampers", "huggies"},
+            "pao frances": {"pao", "carioquinha", "carioca", "cariocas"},
+            "leite integral": {"leite", "integral", "desnatado", "semidesnatado"},
+            "macarrao": {"macarrao", "miojo", "lamen", "espaguete", "penne", "parafuso"},
+            "carne bovina": {"carne", "bovina", "boi", "picadinho", "moida"},
+            "frango abatido": {"frango", "galinha", "coxa", "sobrecoxa", "asa"},
+            "hortifruti": {"banana", "maca", "laranja", "tomate", "cebola", "batata", "limao", "abacaxi"},
+        }
+        for intent, keywords in intent_map.items():
+            if token_set & keywords:
+                if intent == "pirulito":
+                    return "pirulito pop"
+                if intent == "hortifruti":
+                    # Usa o primeiro termo de hortifruti citado para manter precisão
+                    for tk in tokens:
+                        if tk in keywords:
+                            return tk
+                return intent
+        return ""
+
+    def _simplify_query(raw: str) -> str:
+        q_norm = _strip_accents((raw or "").lower())
+        noise = {
+            "de", "da", "do", "das", "dos", "com", "sem", "para", "por", "no", "na",
+            "um", "uma", "uns", "umas", "o", "a", "os", "as",
+            "grande", "pequeno", "pequena", "medio", "media", "vermelho", "azul",
+            "verde", "preto", "branco", "tradicional", "original",
+            "kg", "g", "gr", "grama", "gramas", "l", "lt", "litro", "litros", "ml",
+            "un", "unid", "unidade", "unidades",
+        }
+        words = []
+        for part in q_norm.split():
+            clean = re.sub(r"[^a-z0-9]", "", part)
+            if not clean:
+                continue
+            if clean.isdigit() or re.fullmatch(r"\d+(kg|g|ml|l|lt)", clean):
+                continue
+            if clean in noise:
+                continue
+            words.append(clean)
+        if not words:
+            return ""
+        return " ".join(words[:3])
+
+    def _run_search(q: str) -> tuple[str, list]:
+        raw = search_products_db(q, telefone=telefone)
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return raw, parsed
+            return raw, []
+        except Exception:
+            return raw, []
+
+    # 1) Busca original
+    resultado_json, resultados = _run_search(query)
+    melhor_score, any_ok = _query_quality(resultados)
+
+    # 2) Se veio fraco, refazer com intenção e simplificação
+    needs_retry = (not resultados) or (melhor_score < 0.60) or (not any_ok)
+    if needs_retry:
+        fallback_queries = []
+        query_limpa = _simplify_query(query)
+        query_intent = _infer_intent_query(query)
+
+        for candidate in [query_limpa, query_intent]:
+            c = (candidate or "").strip()
+            if c and c.lower() != (query or "").strip().lower() and c not in fallback_queries:
+                fallback_queries.append(c)
+
+        for candidate in fallback_queries[:3]:
+            logger.info(f"🔄 Retry Busca Inteligente: '{query}' -> '{candidate}'")
+            resultado_retry_json, resultados_retry = _run_search(candidate)
+            score_retry, any_ok_retry = _query_quality(resultados_retry)
+
+            should_take = (
+                (any_ok_retry and not any_ok)
+                or (score_retry > melhor_score + 0.05)
+                or (not resultados and bool(resultados_retry))
+            )
+            if should_take:
                 resultado_json = resultado_retry_json
                 resultados = resultados_retry
+                melhor_score = score_retry
+                any_ok = any_ok_retry
 
-    # 3. Análise de Ambiguidade de Categoria
+    # 3) Analise de ambiguidade e confiança semântica
     if resultados:
         # Filtrar apenas os que têm match razoável
         top_results = [r for r in resultados if r.get("match_score", 0) > 0.5]
@@ -137,7 +286,25 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                  "aviso": f"Encontrei produtos de categorias diferentes ({', '.join(categorias)}). PERGUNTE ao cliente qual ele deseja antes de adicionar."
              }
              resultados.insert(0, warning)
-             resultado_json = json.dumps(resultados, ensure_ascii=False)
+
+        # Se a confiança global estiver baixa, força confirmação (não confiar só no top-1)
+        needs_confirm, motivo = _needs_confirmation(resultados, query)
+        if needs_confirm:
+            for r in resultados:
+                if isinstance(r, dict) and r.get("id") not in {"AVISO_AMBIGUIDADE", "AVISO_BAIXA_CONFIANCA"}:
+                    r["match_ok"] = False
+            warning = {
+                "id": "AVISO_BAIXA_CONFIANCA",
+                "nome": "⚠️ CONFIRMAÇÃO NECESSÁRIA",
+                "preco": 0.0,
+                "estoque": 0,
+                "match_ok": False,
+                "aviso": f"Busca com baixa confiança ({motivo}). Confirme com o cliente antes de adicionar.",
+            }
+            if not any(isinstance(r, dict) and r.get("id") == "AVISO_BAIXA_CONFIANCA" for r in resultados):
+                resultados.insert(0, warning)
+
+        resultado_json = json.dumps(resultados, ensure_ascii=False)
 
     return resultado_json
 

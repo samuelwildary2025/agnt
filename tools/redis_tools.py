@@ -5,6 +5,7 @@ Apenas funcionalidades essenciais mantidas
 import redis
 import time
 import uuid
+from threading import Lock
 from typing import Optional, Dict, List, Tuple
 from config.settings import settings
 from config.logger import setup_logger
@@ -15,6 +16,31 @@ logger = setup_logger(__name__)
 _redis_client: Optional[redis.Redis] = None
 # Buffer local em memória (fallback quando Redis não está disponível)
 _local_buffer: Dict[str, List[str]] = {}
+_local_lock = Lock()
+_local_agent_locks: Dict[str, Tuple[str, float]] = {}
+_local_buffer_locks: Dict[str, float] = {}
+_local_cooldowns: Dict[str, float] = {}
+_local_processed_msgs: Dict[str, float] = {}
+
+
+def _now() -> float:
+    return time.time()
+
+
+def _prune_local_state() -> None:
+    now = _now()
+    for key, (_, expires_at) in list(_local_agent_locks.items()):
+        if expires_at <= now:
+            _local_agent_locks.pop(key, None)
+    for key, expires_at in list(_local_buffer_locks.items()):
+        if expires_at <= now:
+            _local_buffer_locks.pop(key, None)
+    for key, expires_at in list(_local_cooldowns.items()):
+        if expires_at <= now:
+            _local_cooldowns.pop(key, None)
+    for key, expires_at in list(_local_processed_msgs.items()):
+        if expires_at <= now:
+            _local_processed_msgs.pop(key, None)
 
 def normalize_phone(telefone: str) -> str:
     telefone = "" if telefone is None else str(telefone)
@@ -68,18 +94,35 @@ def _acquire_lock(client: redis.Redis, key: str, ttl_seconds: int, wait_seconds:
 
 def acquire_agent_lock(telefone: str, ttl_seconds: int = 600, wait_seconds: int = 120) -> Optional[str]:
     client = get_redis_client()
-    if client is None:
-        return "NOLOCK"
     telefone = normalize_phone(telefone)
+    if client is None:
+        token = uuid.uuid4().hex
+        deadline = time.monotonic() + max(0, int(wait_seconds))
+        while True:
+            with _local_lock:
+                _prune_local_state()
+                current = _local_agent_locks.get(telefone)
+                if current is None:
+                    _local_agent_locks[telefone] = (token, _now() + max(1, int(ttl_seconds)))
+                    return token
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(0.15)
     return _acquire_lock(client, _lock_key("agent", telefone), ttl_seconds=ttl_seconds, wait_seconds=wait_seconds)
 
 def release_agent_lock(telefone: str, token: str) -> bool:
-    if token == "NOLOCK":
-        return True
     client = get_redis_client()
-    if client is None:
-        return False
     telefone = normalize_phone(telefone)
+    if client is None:
+        with _local_lock:
+            _prune_local_state()
+            current = _local_agent_locks.get(telefone)
+            if not current:
+                return False
+            if current[0] == token:
+                _local_agent_locks.pop(telefone, None)
+                return True
+            return False
     return _release_lock(client, _lock_key("agent", telefone), token)
 
 
@@ -241,7 +284,14 @@ def check_and_mark_message_processed(message_id: str, ttl: int = 300) -> bool:
         
     client = get_redis_client()
     if client is None:
-        return True # Sem Redis, assume que é nova
+        with _local_lock:
+            _prune_local_state()
+            expires_at = _local_processed_msgs.get(message_id)
+            if expires_at and expires_at > _now():
+                logger.warning(f"🚫 Mensagem duplicada ignorada (Fallback local): {message_id}")
+                return False
+            _local_processed_msgs[message_id] = _now() + max(1, int(ttl))
+            return True
         
     try:
         key = f"processed_msg:{message_id}"
@@ -268,23 +318,37 @@ def acquire_buffer_session_lock(telefone: str, ex_seconds: int = 180) -> bool:
     Funciona como um semáforo distribuído.
     """
     client = get_redis_client()
-    if client is None: return True
+    telefone = normalize_phone(telefone)
+    if client is None:
+        with _local_lock:
+            _prune_local_state()
+            expires_at = _local_buffer_locks.get(telefone)
+            if expires_at and expires_at > _now():
+                return False
+            _local_buffer_locks[telefone] = _now() + max(1, int(ex_seconds))
+            return True
     
     try:
-        key = f"buf_session_active:{normalize_phone(telefone)}"
+        key = f"buf_session_active:{telefone}"
         return bool(client.set(key, "1", nx=True, ex=ex_seconds))
-    except:
-        return True
+    except Exception:
+        return False
 
 def refresh_buffer_session_lock(telefone: str, ex_seconds: int = 180) -> bool:
     """
     Renova o TTL da sessão ativa de buffer para evitar expiração durante processamento.
     """
     client = get_redis_client()
+    telefone = normalize_phone(telefone)
     if client is None:
-        return True
+        with _local_lock:
+            _prune_local_state()
+            if telefone not in _local_buffer_locks:
+                return False
+            _local_buffer_locks[telefone] = _now() + max(1, int(ex_seconds))
+            return True
     try:
-        key = f"buf_session_active:{normalize_phone(telefone)}"
+        key = f"buf_session_active:{telefone}"
         return bool(client.expire(key, ex_seconds))
     except Exception:
         return False
@@ -292,10 +356,14 @@ def refresh_buffer_session_lock(telefone: str, ex_seconds: int = 180) -> bool:
 def release_buffer_session_lock(telefone: str) -> None:
     """Remove a marcação de sessão de buffer ativa."""
     client = get_redis_client()
-    if client is None: return
+    telefone = normalize_phone(telefone)
+    if client is None:
+        with _local_lock:
+            _local_buffer_locks.pop(telefone, None)
+        return
     try:
-        client.delete(f"buf_session_active:{normalize_phone(telefone)}")
-    except:
+        client.delete(f"buf_session_active:{telefone}")
+    except Exception:
         pass
 
 
@@ -317,9 +385,11 @@ def set_agent_cooldown(telefone: str, ttl_seconds: int = 60) -> bool:
     client = get_redis_client()
     telefone = normalize_phone(telefone)
     if client is None:
-        # Fallback: não há persistência real, apenas log
-        logger.warning(f"[fallback] Cooldown não persistido (Redis indisponível) para {telefone}")
-        return False
+        with _local_lock:
+            _prune_local_state()
+            _local_cooldowns[telefone] = _now() + max(1, int(ttl_seconds))
+        logger.warning(f"[fallback] Cooldown aplicado em memória para {telefone} por {ttl_seconds}s")
+        return True
     try:
         key = cooldown_key(telefone)
         client.set(key, "1", ex=ttl_seconds)
@@ -337,7 +407,16 @@ def is_agent_in_cooldown(telefone: str) -> Tuple[bool, int]:
     client = get_redis_client()
     telefone = normalize_phone(telefone)
     if client is None:
-        return (False, -1)
+        with _local_lock:
+            _prune_local_state()
+            expires_at = _local_cooldowns.get(telefone)
+            if not expires_at:
+                return (False, -1)
+            ttl = int(expires_at - _now())
+            if ttl <= 0:
+                _local_cooldowns.pop(telefone, None)
+                return (False, -1)
+            return (True, ttl)
     try:
         key = cooldown_key(telefone)
         val = client.get(key)
