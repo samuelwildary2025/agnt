@@ -106,6 +106,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             "o", "a", "os", "as", "um", "uma", "uns", "umas",
             "kg", "g", "gr", "grama", "gramas", "l", "lt", "litro", "litros", "ml",
             "un", "unid", "unidade", "unidades",
+            "nossa", "senhora", "sr", "sra",
         }
         out = []
         for tk in raw:
@@ -160,10 +161,19 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                 cat = "hortifruti"
             cat_set.add(cat or "outros")
 
-        low_score = best < 0.68
-        low_margin = len(ranked) > 1 and margin < 0.08
-        weak_coverage = len(q_tokens) >= 2 and coverage < 0.50
+        low_score = best < 0.58
+        very_low_score = best < 0.48
+        low_margin = len(ranked) > 1 and margin < 0.04
+        weak_coverage = len(q_tokens) >= 2 and coverage < 0.35
         mixed_categories = len(cat_set) >= 2 and len(top3) >= 2
+        critical_category_mix = (
+            mixed_categories
+            and (
+                ("limpeza" in cat_set and "higiene" in cat_set)
+                or ("acougue" in cat_set and "hortifruti" in cat_set)
+                or ("acougue" in cat_set and "bebidas" in cat_set)
+            )
+        )
 
         q_norm = _strip_accents((original_query or "").lower())
         top_name = _strip_accents((ranked[0].get("nome", "") or "").lower())
@@ -172,10 +182,19 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return True, "pedido de strogonoff sem item de strogonoff no topo"
 
         ovo_bandeja_intent = bool(re.search(r"\b(bandeja|cartela)\b", q_norm) and re.search(r"\bovos?\b", q_norm))
-        if ovo_bandeja_intent and "ovo" not in top_name:
-            return True, "pedido de bandeja/cartela de ovo sem ovo no topo"
-        if ovo_bandeja_intent and not re.search(r"\b20\b", top_name):
-            return True, "pedido de bandeja/cartela de ovo deve priorizar 20 unidades"
+        if ovo_bandeja_intent:
+            top3_names = [
+                _strip_accents((r.get("nome", "") or "").lower())
+                for r in top3
+                if isinstance(r, dict)
+            ]
+            has_ovo20_top3 = any(("ovo" in nm and re.search(r"\b20\b", nm)) for nm in top3_names)
+            if "ovo" not in top_name and not has_ovo20_top3:
+                return True, "pedido de bandeja/cartela de ovo sem ovo no topo"
+            if not re.search(r"\b20\b", top_name):
+                if has_ovo20_top3 and best >= 0.52:
+                    return False, ""
+                return True, "pedido de bandeja/cartela de ovo deve priorizar 20 unidades"
 
         # Intenções com mapeamento já determinístico não devem voltar com confirmação.
         if ("tapioca" in q_norm or "goma" in q_norm) and ("goma" in top_name or "tapioca" in top_name):
@@ -184,11 +203,17 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return False, ""
         if ("animados" in q_norm and "chocolate" in q_norm) and ("animados" in top_name):
             return False, ""
+        if all(k in q_norm for k in ["pao", "integral", "fatima"]) and all(k in top_name for k in ["pao", "integral", "fatima"]):
+            return False, ""
 
-        if low_score and weak_coverage:
+        if very_low_score and weak_coverage:
             return True, "score baixo e baixa cobertura dos termos do cliente"
-        if low_margin and (weak_coverage or mixed_categories):
+        if low_score and weak_coverage and critical_category_mix:
+            return True, "score baixo com categorias conflitantes"
+        if low_margin and weak_coverage and best < 0.62:
             return True, "candidatos muito empatados para a intencao"
+        if low_margin and critical_category_mix:
+            return True, "empate entre categorias conflitantes"
         return False, ""
 
     def _infer_intent_query(raw: str) -> str:
@@ -203,6 +228,12 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if "carne" in token_set or "boi" in token_set or "bovina" in token_set:
                 return "strogonoff kg"
             return "strogonoff kg"
+        if "pao" in token_set and "integral" in token_set:
+            if "fatima" in token_set:
+                return "pao de forma integral fatima"
+            return "pao integral"
+        if "pao" in token_set and "fatima" in token_set:
+            return "pao de forma fatima"
         if "picadinho" in token_set:
             return "picadinho bovino kg"
         if ("bolinha" in token_set or "bolinhas" in token_set) and "queijo" in token_set:
@@ -249,6 +280,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             "verde", "preto", "branco", "tradicional", "original",
             "kg", "g", "gr", "grama", "gramas", "l", "lt", "litro", "litros", "ml",
             "un", "unid", "unidade", "unidades",
+            "nossa", "senhora",
         }
         words = []
         for part in q_norm.split():
@@ -325,6 +357,23 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                     semantic += 0.08
                 else:
                     semantic -= 0.02
+
+            # Atributos explícitos do cliente devem pesar mais para auto-escolha consistente.
+            if "integral" in q_tokens:
+                if "integral" in name:
+                    semantic += 0.20
+                elif "pao" in q_tokens and "pao" in name:
+                    semantic -= 0.10
+            if "fatima" in q_tokens:
+                if "fatima" in name:
+                    semantic += 0.18
+                elif "pao" in q_tokens and "pao" in name:
+                    semantic -= 0.06
+            if {"pao", "integral", "fatima"}.issubset(q_tokens):
+                if all(token in name for token in ("pao", "integral", "fatima")):
+                    semantic += 0.30
+                elif "pao" in name and "fatima" in name and "tradicional" in name:
+                    semantic -= 0.12
 
             # Regras fortes para estabilizar itens críticos
             if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_full):
