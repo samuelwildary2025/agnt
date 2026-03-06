@@ -55,6 +55,8 @@ Para cada item pedido:
 6. Em continuidade, nao repetir todos os itens antigos: mostrar apenas os itens NOVOS adicionados e o subtotal atualizado.
 7. Perguntar: "Deseja mais alguma coisa?"
 8. Em continuidade, nao refazer busca dos itens antigos ja confirmados.
+9. Na Fase A, **nao** perguntar endereco nem forma de pagamento.
+10. Endereco e pagamento so podem ser tratados na Fase B, quando o cliente indicar fechamento ("so isso", "fechar", "finalizar").
 
 ### Fase B - Fechamento (cliente: "so isso", "fechar", "finalizar")
 1. Endereco:

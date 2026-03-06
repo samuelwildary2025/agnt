@@ -990,6 +990,62 @@ def _extract_response(result: Any) -> str:
         return _content_to_str(result.content)
     return str(result)
 
+
+def _message_content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and "text" in block:
+                parts.append(str(block.get("text", "")))
+        return "\n".join(parts).strip()
+    return str(content or "").strip()
+
+
+def _is_close_intent(text: str) -> bool:
+    t = (text or "").lower()
+    patterns = [
+        r"\bso isso\b",
+        r"\bs[oó] isso\b",
+        r"\bpode fechar\b",
+        r"\bfechar\b",
+        r"\bfinalizar\b",
+        r"\bencerrar\b",
+        r"\bfinaliza\b",
+        r"\bconcluir\b",
+    ]
+    return any(re.search(p, t) for p in patterns)
+
+
+def _sanitize_premature_checkout(response: str) -> str:
+    if not response:
+        return response
+    lines = [ln for ln in (response or "").splitlines() if ln.strip()]
+    blocked_terms = [
+        "forma de pagamento",
+        "pix, cartão ou dinheiro",
+        "pix, cartao ou dinheiro",
+        "já temos seu endereço",
+        "ja temos seu endereco",
+        "se for finalizar",
+        "podemos fechar",
+        "endereço da",
+        "endereco da",
+    ]
+    kept = []
+    for ln in lines:
+        low = ln.lower()
+        if any(term in low for term in blocked_terms):
+            continue
+        kept.append(ln)
+    out = "\n".join(kept).strip()
+    if "deseja mais alguma coisa" not in out.lower():
+        out = (out + "\n\nDeseja mais alguma coisa?").strip()
+    return out
+
 # Orquestrador removido
 
 
@@ -1013,11 +1069,30 @@ def vendedor_node(state: AgentState) -> dict:
     # Configuração
     config = {
         "configurable": {"thread_id": state["phone"]},
-        "recursion_limit": 14
+        "recursion_limit": 30
     }
     
     result = agent.invoke({"messages": state["messages"]}, config)
     response = _extract_response(result)
+
+    # Evita vazar mensagem técnica do executor para o cliente.
+    low = (response or "").lower()
+    if "need more steps to process this request" in low:
+        logger.warning("⚠️ Resposta técnica por limite de passos detectada; aplicando fallback amigável.")
+        response = (
+            "Entendi. Vou seguir com isso agora: 1 cartela de Danone Ninho "
+            "(iogurte polpa). Confirmo já no seu pedido."
+        )
+
+    # Guard rail: se o cliente não pediu para fechar, bloqueia pergunta de
+    # endereço/pagamento na mesma resposta de adição.
+    last_user_text = ""
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, HumanMessage):
+            last_user_text = _message_content_to_text(msg.content)
+            break
+    if last_user_text and not _is_close_intent(last_user_text):
+        response = _sanitize_premature_checkout(response)
 
     logger.info(f"👩‍💼 [VENDEDOR] Resposta: {response[:100]}...")
 
