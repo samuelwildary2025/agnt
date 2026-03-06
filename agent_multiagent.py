@@ -205,6 +205,12 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return False, ""
         if (("massa fina" in q_norm) or ("massafina" in q_norm) or ("sovado" in q_norm)) and ("sovado" in top_name):
             return False, ""
+        if ("absorvente" in q_norm or "abs" in q_norm):
+            wants_noturno = ("noturno" in q_norm or "noturna" in q_norm)
+            if wants_noturno and (("abs" in top_name or "absorv" in top_name) and ("noturn" in top_name or " not " in f" {top_name} ")):
+                return False, ""
+            if not wants_noturno and ("abs" in top_name or "absorv" in top_name):
+                return False, ""
         if all(k in q_norm for k in ["pao", "integral", "fatima"]) and all(k in top_name for k in ["pao", "integral", "fatima"]):
             return False, ""
 
@@ -230,6 +236,10 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if "carne" in token_set or "boi" in token_set or "bovina" in token_set:
                 return "strogonoff kg"
             return "strogonoff kg"
+        if "absorvente" in token_set or "abs" in token_set:
+            if "noturno" in token_set or "noturna" in token_set:
+                return "abs noturno"
+            return "abs"
         if (("massa" in token_set and "fina" in token_set) or "massafina" in token_set or "sovado" in token_set):
             return "pao sovado"
         if "pao" in token_set and "integral" in token_set:
@@ -383,6 +393,14 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                     semantic += 0.35
                 elif "pao frances" in name or "frances" in name:
                     semantic -= 0.10
+            if "absorvente" in q_tokens or "abs" in q_tokens:
+                if "abs" in name or "absorv" in name:
+                    semantic += 0.20
+            if "noturno" in q_tokens or "noturna" in q_tokens:
+                if "noturn" in name or " not " in f" {name} ":
+                    semantic += 0.20
+                elif "abs" in name or "absorv" in name:
+                    semantic -= 0.08
 
             # Regras fortes para estabilizar itens críticos
             if re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_full):

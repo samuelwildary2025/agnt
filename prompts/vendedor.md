@@ -135,7 +135,12 @@ Se cliente pedir sorvete em kg, converter para litros e confirmar educadamente q
 - Se ruim, refazer com sinonimo/termo base.
 - Se cliente pede tamanho especifico e nao aparece equivalente confiavel, tratar como indisponivel daquele tamanho.
 
-### 7.10 Massa fina
+### 7.10 Absorvente (ABS)
+- "absorvente" -> buscar por `abs`.
+- Se cliente mencionar "noturno", tratar como variacao: buscar `abs noturno`.
+- Se nao houver marca especifica, escolher opcao noturna mais aderente e seguir.
+
+### 7.11 Massa fina
 - "pao massa fina", "massa fina" ou "massafina" -> tratar como **pao sovado**.
 - Buscar por `pao sovado`.
 - Se houver pao sovado na busca, adicionar normalmente (nao informar falta de "massa fina").
