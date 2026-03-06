@@ -42,7 +42,7 @@ from tools.redis_tools import (
     start_order_session,
     clear_suggestions,
     save_pending_confirmation,
-    get_pending_confirmations_open,
+    get_pending_confirmations,
     resolve_pending_confirmation,
     clear_pending_confirmations,
 )
@@ -790,7 +790,7 @@ def finalizar_pedido_tool(cliente: str, telefone: str, endereco: str, forma_paga
 
     # Proteção anti-esquecimento: não finalizar com pendências abertas
     try:
-        pendencias = get_pending_confirmations_open(telefone)
+        pendencias = get_pending_confirmations(telefone)
         if pendencias:
             preview = []
             for p in pendencias[:3]:
@@ -887,6 +887,14 @@ def finalizar_pedido_tool(cliente: str, telefone: str, endereco: str, forma_paga
         
         mark_order_sent(telefone, result) # Atualiza o status da sessão para 'sent'
         clear_pending_confirmations(telefone)
+        clear_suggestions(telefone)
+        clear_cart(telefone)
+        clear_order_session(telefone)
+        try:
+            get_session_history(telefone).clear()
+            logger.info(f"🧹 Contexto da conversa limpo após finalização: {telefone}")
+        except Exception as e:
+            logger.warning(f"Falha ao limpar contexto após finalização: {e}")
         
         return f"{result}\n\n💰 **Valor Total Processado:** R$ {total:.2f}\n(O agente DEVE usar este valor na resposta)"
         
@@ -1167,7 +1175,7 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
 
         # 3.2 Injetar pendências abertas para evitar esquecimento de itens ambíguos
         try:
-            pendencias = get_pending_confirmations_open(telefone)
+            pendencias = get_pending_confirmations(telefone)
             if pendencias:
                 linhas = []
                 for p in pendencias[:5]:
@@ -1196,7 +1204,7 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
                         break
             
             if ultima_pergunta_ia:
-                mensagem_expandida = f"O cliente respondeu '{clean_message}' CONFIRMANDO. Sua mensagem anterior foi: \"{ultima_pergunta_ia}...\". Se você sugeriu produtos, use busca_produto_tool para confirmar preço e só então adicione os itens confirmados com add_item_tool. Não invente preço."
+                mensagem_expandida = f"O cliente respondeu '{clean_message}' CONFIRMANDO. Sua mensagem anterior foi: \"{ultima_pergunta_ia}...\". Se você sugeriu produtos, use busca_produto_tool para confirmar preço e atualize o pedido no contexto antes de seguir. Não invente preço."
                 logger.info(f"🔄 Mensagem curta expandida: '{clean_message}'")
         elif msg_lower in ["nao", "não", "n", "nope", "nao quero", "não quero"]:
             mensagem_expandida = f"O cliente respondeu '{clean_message}' (NEGATIVO). Pergunte se precisa de mais alguma coisa."
