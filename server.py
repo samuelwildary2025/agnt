@@ -671,9 +671,27 @@ def _extract_incoming(payload: Dict[str, Any]) -> Dict[str, Any]:
                 mensagem_texto = txt or message_any.get("body")
 
     if from_me:
-        # Se for mensagem enviada por MIM (atendente), tenta achar o destinatário
-        candidates_me = [chat.get("wa_id"), chat.get("phone"), payload.get("sender"), payload.get("to")]
-        telefone = next((re.sub(r"\\D", "", c) for c in candidates_me if c and "@lid" not in str(c)), telefone)
+        # Se for mensagem enviada por MIM (atendente), precisamos travar o CLIENTE da conversa.
+        # Prioriza campos de destinatário/chat e evita usar "sender" (que costuma ser o próprio agente).
+        agent_clean = re.sub(r"\\D", "", (settings.whatsapp_agent_number or ""))
+        candidates_me = [
+            payload.get("to"),
+            payload.get("recipient"),
+            payload.get("chatId"),
+            message_any.get("chatid") if isinstance(message_any, dict) else None,
+            chat.get("wa_id"),
+            chat.get("id"),
+            chat.get("phone"),
+            payload.get("from"),
+        ]
+        for cand in candidates_me:
+            cleaned = _clean_number(str(cand)) if cand is not None else None
+            if not cleaned:
+                continue
+            if agent_clean and cleaned == agent_clean:
+                continue
+            telefone = cleaned
+            break
         # NÃO BAIXAR nem analisar nada. Apenas retornar o placeholder.
         # O Human Takeover será tratado mais abaixo, após o logging.
         mensagem_texto = mensagem_texto or f"[Mídia do atendente]"
@@ -1340,6 +1358,10 @@ async def webhook(req: Request, tasks: BackgroundTasks):
                 set_agent_cooldown(tel_clean, ttl)
                 clear_cart(tel_clean)
                 logger.info(f"🙋 Human Takeover ativado para {tel_clean} - IA pausa por {ttl//60}min - Carrinho limpo")
+            else:
+                logger.warning(
+                    f"⚠️ Human Takeover ignorado: telefone inválido/igual ao agente | tel={tel_clean} agent={agent_clean}"
+                )
             
             # Registrar mensagem no histórico como mensagem da IA
             log_txt = txt or f"[{msg_type} do atendente]"
