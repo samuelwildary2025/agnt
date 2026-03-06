@@ -194,7 +194,7 @@ def _apply_term_translations(query: str) -> str:
     if re.search(r"\bbolinhas?\b", q_no_acc) and re.search(r"\bqueijo\b", q_no_acc):
         return "mini bolinha pannemix queijo kg"
     if re.search(r"\b(bandeja|cartela)\b", q_no_acc) and re.search(r"\bovos?\b", q_no_acc):
-        return "ovo branco"
+        return "ovo branco 20"
 
     q_low = q.lower()
     tokens = q_low.split(" ")

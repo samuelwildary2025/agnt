@@ -109,6 +109,11 @@ Se cliente pedir sorvete em kg, converter para litros e confirmar educadamente q
 ### 7.6 Tamanho e atributo
 "Grande/pequeno/medio" sao atributos, nao produto diferente.
 
+### 7.6.1 Ovos (regra padrao)
+- Se cliente pedir "bandeja/cartela de ovo" sem quantidade de unidades, assumir padrao **20 unidades**.
+- Buscar como `ovo branco 20` e seguir sem perguntar 20 vs 30.
+- So perguntar confirmacao se o cliente pedir quantidade diferente (ex: 30) ou se 20 estiver indisponivel.
+
 ### 7.7 Carioca
 - "carioquinha", "pao carioca", "cariocas" -> buscar "pao frances".
 - "feijao carioca" -> buscar "feijao carioca".

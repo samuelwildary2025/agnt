@@ -176,6 +176,8 @@ def busca_produto_tool(telefone: str, query: str) -> str:
         ovo_bandeja_intent = bool(re.search(r"\b(bandeja|cartela)\b", q_norm) and re.search(r"\bovos?\b", q_norm))
         if ovo_bandeja_intent and "ovo" not in top_name:
             return True, "pedido de bandeja/cartela de ovo sem ovo no topo"
+        if ovo_bandeja_intent and not re.search(r"\b20\b", top_name):
+            return True, "pedido de bandeja/cartela de ovo deve priorizar 20 unidades"
 
         if low_score and weak_coverage:
             return True, "score baixo e baixa cobertura dos termos do cliente"
@@ -200,7 +202,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
         if ("bolinha" in token_set or "bolinhas" in token_set) and "queijo" in token_set:
             return "mini bolinha pannemix queijo kg"
         if ("bandeja" in token_set or "cartela" in token_set) and ("ovo" in token_set or "ovos" in token_set):
-            return "ovo branco"
+            return "ovo branco 20"
         if "danone" in token_set and ("ninho" in token_set or "cartela" in token_set):
             return "iogurte polpa ninho bdj 540g"
         if "danoninho" in token_set or ("cartela" in token_set and "iogurte" in token_set):
@@ -325,7 +327,9 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                 elif any(corte in name for corte in ["paleta", "acem", "musculo", "coxao", "patinho"]):
                     semantic -= 0.20
             if re.search(r"\b(bandeja|cartela)\b", q_full) and re.search(r"\bovos?\b", q_full):
-                if "ovo branco" in name:
+                if "ovo branco" in name and re.search(r"\b20\b", name):
+                    semantic += 0.40
+                elif "ovo branco" in name:
                     semantic += 0.30
                 elif "ovo" in name:
                     semantic += 0.12
