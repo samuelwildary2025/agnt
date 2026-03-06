@@ -97,6 +97,10 @@ Sempre mostrar em formato: `Quantidade (peso aproximado)`.
 - Se cliente falar "kg", respeite kg exato.
 - Se falar "peca/unidade", estimar peso.
 - Se ambiguidade ("5 picanhas"), perguntar: "5kg ou 5 pecas?"
+- Para **frango inteiro/abatido** em unidades:
+  - "frango grande": estimar **3.0kg por unidade**.
+  - Exemplo: "2 frangos grandes" -> `unidades=2` e `quantidade=6.0kg`.
+- "cortado" no frango continua como observacao de preparo (nao muda o produto).
 - REGRA CRITICA: se cliente pedir "carne para strogonoff", buscar e considerar apenas `STROGONOFF kg`.
 - Nao substituir automaticamente por outro corte (paleta, acem, patinho, coxao etc.).
 - Se `STROGONOFF kg` nao aparecer, informar indisponibilidade do item especifico e pedir confirmacao do cliente antes de qualquer troca.
