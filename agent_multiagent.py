@@ -203,7 +203,7 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return "ovo branco 20"
         if "danone" in token_set and ("ninho" in token_set or "cartela" in token_set):
             return "iogurte polpa ninho bdj 540g"
-        if "danoninho" in token_set or ("cartela" in token_set and "iogurte" in token_set):
+        if "danoninho" in token_set or "danoneninho" in token_set or ("cartela" in token_set and "iogurte" in token_set):
             return "iogurte polpa ninho bdj 540g"
 
         intent_map = {
@@ -1013,7 +1013,7 @@ def vendedor_node(state: AgentState) -> dict:
     # Configuração
     config = {
         "configurable": {"thread_id": state["phone"]},
-        "recursion_limit": 25
+        "recursion_limit": 14
     }
     
     result = agent.invoke({"messages": state["messages"]}, config)

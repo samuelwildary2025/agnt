@@ -185,6 +185,8 @@ def _apply_term_translations(query: str) -> str:
     # deve buscar iogurte polpa ninho (BDJ), e não leite em pó ninho.
     if "danone" in q_no_acc and "ninho" in q_no_acc:
         return "iogurte polpa ninho bdj 540g"
+    if "danoneninho" in q_no_acc:
+        return "iogurte polpa ninho bdj 540g"
     if "cartela" in q_no_acc and ("danone" in q_no_acc or "danoninho" in q_no_acc):
         return "iogurte polpa ninho bdj 540g"
     if re.search(r"\b(carne|boi|bovina)\b", q_no_acc) and re.search(r"\b(strogonoff|strogonof|estrogonoff|estrogonof)\b", q_no_acc):

@@ -15,6 +15,7 @@ import threading
 import re
 import io
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from arq import create_pool
 from arq.connections import RedisSettings
 from urllib.parse import urlparse
@@ -900,9 +901,18 @@ def process_async(tel, msg, mid=None):
         # 3. Começar a "Digitar"
         send_presence(num, "composing")
         
-        # 4. Processamento IA
-        res = run_agent(tel, msg)
-        txt = res.get("output", "Erro ao processar.")
+        # 4. Processamento IA com timeout explícito (fallback síncrono)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(run_agent, tel, msg)
+                res = fut.result(timeout=75)
+            txt = res.get("output", "Erro ao processar.")
+        except FutureTimeoutError:
+            logger.error(f"⏱️ Timeout de inferência (fallback sync) para {tel} (>75s)")
+            txt = (
+                "Desculpe, demorei mais que o normal para processar seu pedido. "
+                "Pode repetir a última parte do pedido em uma mensagem curta para eu continuar?"
+            )
         
         # 5. Parar "Digitar"
         send_presence(num, "paused")

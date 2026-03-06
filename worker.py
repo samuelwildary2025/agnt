@@ -107,9 +107,19 @@ async def process_message(
                 mensagem = "[Mídia recebida, erro ao processar]"
         
         # 4. Processamento IA (síncrono - run_agent não é async)
-        # Rodamos em thread_pool para não bloquear o event loop
-        res = await asyncio.to_thread(run_agent, telefone, mensagem)
-        txt = res.get("output", "Erro ao processar.")
+        # Timeout explícito para evitar cliente sem resposta em loops longos.
+        try:
+            res = await asyncio.wait_for(
+                asyncio.to_thread(run_agent, telefone, mensagem),
+                timeout=75,
+            )
+            txt = res.get("output", "Erro ao processar.")
+        except asyncio.TimeoutError:
+            logger.error(f"⏱️ Timeout de inferência para {telefone} (>75s)")
+            txt = (
+                "Desculpe, demorei mais que o normal para processar seu pedido. "
+                "Pode repetir a última parte do pedido em uma mensagem curta para eu continuar?"
+            )
         
         # 5. Parar "Digitar"
         await asyncio.to_thread(whatsapp.send_presence, num, "paused")
