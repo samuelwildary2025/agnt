@@ -177,6 +177,14 @@ def busca_produto_tool(telefone: str, query: str) -> str:
         if ovo_bandeja_intent and not re.search(r"\b20\b", top_name):
             return True, "pedido de bandeja/cartela de ovo deve priorizar 20 unidades"
 
+        # Intenções com mapeamento já determinístico não devem voltar com confirmação.
+        if ("tapioca" in q_norm or "goma" in q_norm) and ("goma" in top_name or "tapioca" in top_name):
+            return False, ""
+        if ("fandangos" in q_norm and ("vermelho" in q_norm or "presunto" in q_norm)) and ("fandangos" in top_name):
+            return False, ""
+        if ("animados" in q_norm and "chocolate" in q_norm) and ("animados" in top_name):
+            return False, ""
+
         if low_score and weak_coverage:
             return True, "score baixo e baixa cobertura dos termos do cliente"
         if low_margin and (weak_coverage or mixed_categories):

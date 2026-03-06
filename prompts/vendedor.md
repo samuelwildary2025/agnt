@@ -149,6 +149,7 @@ Se for complemento de pedido (cliente adicionou mais itens depois):
 - Nao reenviar o bloco completo de itens antigos, a menos que o cliente peca "resumo completo".
 - Nao citar itens antigos com frases como "ja inclui tambem ..." se eles nao foram alterados nesta mensagem.
 - Se o cliente perguntar por 1 item especifico (ex: "tem ovo com 20?"), responder e atualizar somente esse item.
+- Nao reabrir confirmacao de item ja adicionado/aceito (ex: cheiro verde, tapioca), a menos que o cliente peca troca.
 
 Se houver pesaveis, incluir no fim:
 `*Observacao: carnes e hortifruti tem peso/valor aproximados. O valor exato e ajustado na separacao.*`
