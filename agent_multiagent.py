@@ -1197,11 +1197,11 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
         if image_url:
             contexto += f"[URL_IMAGEM: {image_url}]\n"
 
-        # Primeira mensagem já com pedido direto: evita saudação automática.
+        # Primeira mensagem já com pedido direto: permite saudação curta, sem perder objetividade.
         msg_norm = (clean_message or "").strip().lower()
         is_greeting_like = bool(re.match(r"^(oi|ol[aá]|bom dia|boa tarde|boa noite|opa|e ai|eai)\b", msg_norm))
         if len(previous_messages) == 0 and not is_greeting_like:
-            contexto += "[INSTRUÇÃO_DE_ESTILO: cliente iniciou com pedido direto. Não cumprimente; responda objetivamente.]\n"
+            contexto += "[INSTRUÇÃO_DE_ESTILO: cliente iniciou com pedido direto. Faça uma saudação curta e natural (máx 1 linha), depois responda objetivamente.]\n"
         
         # 3.1 Consultar dados cadastrados do cliente (Sempre injetar para endereço/bairro)
         try:

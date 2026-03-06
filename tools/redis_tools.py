@@ -613,12 +613,12 @@ def get_order_context(telefone: str, mensagem: str = "") -> str:
             # Pedido anterior FOI finalizado.
             if is_greeting:
                 return "[SESSÃO] Novo pedido iniciado. Cliente já fez pedido anteriormente."
-            return "[SESSÃO] Novo pedido direto. Não cumprimente; responda com atualização objetiva do pedido."
+            return "[SESSÃO] Novo pedido direto. Faça uma saudação curta e natural (1 linha), e em seguida responda objetivamente com o resumo do pedido."
         else:
             # Conversa nova ou sessão expirou.
             if is_greeting:
                 return "[SESSÃO] Nova conversa. Monte o pedido normalmente."
-            return "[SESSÃO] Nova conversa com pedido direto. Não cumprimente; responda objetivamente."
+            return "[SESSÃO] Nova conversa com pedido direto. Faça uma saudação curta e natural (1 linha), e em seguida responda objetivamente."
     
     status = session.get("status", "building")
     
