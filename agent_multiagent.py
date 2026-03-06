@@ -187,6 +187,8 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return "strogonoff kg"
         if ("bolinha" in token_set or "bolinhas" in token_set) and "queijo" in token_set:
             return "mini bolinha pannemix queijo kg"
+        if ("bandeja" in token_set or "cartela" in token_set) and ("ovo" in token_set or "ovos" in token_set):
+            return "ovo branco"
         if "danone" in token_set and ("ninho" in token_set or "cartela" in token_set):
             return "iogurte polpa ninho bdj 540g"
         if "danoninho" in token_set or ("cartela" in token_set and "iogurte" in token_set):
