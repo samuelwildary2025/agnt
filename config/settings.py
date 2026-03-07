@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     openai_embedding_api_key: Optional[str] = None # Chave específica para embeddings (OpenAI)
     google_api_key: Optional[str] = None
     llm_model: Optional[str] = None
-    llm_temperature: float = 0.0  # Zero para respostas determinísticas
+    llm_temperature: float = 0.1  # Baixa temperatura para manter consistência
     llm_provider: str = "google"   # Mantido padrão mas pode ser sobrescrito pelo env
     analista_llm_model: Optional[str] = None
     analista_llm_temperature: Optional[float] = None

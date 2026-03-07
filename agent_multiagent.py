@@ -1001,7 +1001,7 @@ def load_prompt(filename: str) -> str:
 # Construção dos LLMs
 # ============================================
 
-def _build_llm(temperature: float = 0.0, model_override: str = None):
+def _build_llm(temperature: float = 0.1, model_override: str = None):
     """Constrói um LLM baseado nas configurações."""
     model = model_override or getattr(settings, "llm_model", "gemini-1.5-flash")
     provider = getattr(settings, "llm_provider", "google")
@@ -1043,8 +1043,8 @@ def _build_llm(temperature: float = 0.0, model_override: str = None):
 
 def _build_fast_llm():
     """Constrói um LLM rápido e leve para o Orquestrador."""
-    # Usa o mesmo modelo mas com temperatura 0 para determinismo
-    return _build_llm(temperature=0.0)
+    # Usa baixa temperatura para manter boa aderência às regras com leve flexibilidade.
+    return _build_llm(temperature=0.1)
 
 # ============================================
 # Nós do Grafo (Agentes)
@@ -1152,7 +1152,7 @@ def vendedor_node(state: AgentState) -> dict:
     # set_current_phone(state["phone"]) # REMOVIDO: Contexto do analista
     
     prompt = load_prompt("vendedor.md")
-    llm = _build_llm(temperature=0.0)  # Temperatura 0 para seguir regras do prompt
+    llm = _build_llm(temperature=0.1)  # Temperatura baixa para manter consistência nas regras
     
     # Criar agente ReAct com as ferramentas do vendedor
     agent = create_react_agent(llm, VENDEDOR_TOOLS, prompt=prompt)
