@@ -238,6 +238,15 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if "carne" in token_set or "boi" in token_set or "bovina" in token_set:
                 return "strogonoff kg"
             return "strogonoff kg"
+        # Regras determinísticas para evitar ambiguidades comuns.
+        if "feijao" in token_set and "carioca" in token_set:
+            return "feijao carioca"
+        if "pao" in token_set and ("carioca" in token_set or "carioquinha" in token_set or "cariocas" in token_set):
+            return "pao frances"
+        if "pao" in token_set and ("forma" in token_set or "pacote" in token_set):
+            return "pao forma"
+        if "sabao" in token_set and ("liquido" in token_set or "liq" in token_set):
+            return "sabao liquido"
         if (("mao" in token_set and "vaca" in token_set) or "ossobuco" in token_set or "ossubuco" in token_set):
             return "ossobuco kg"
         if "absorvente" in token_set or "abs" in token_set:
@@ -268,25 +277,37 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             "refrigerante": {"coca", "cocacola", "pepsi", "guarana", "fanta", "sprite", "refri", "refrigerante"},
             "cerveja": {"cerveja", "heineken", "skol", "brahma", "budweiser", "itaipava", "antarctica"},
             "sabao po": {"sabao", "po", "omo", "tixan", "brilhante", "lava"},
+            "sabao liquido": {"sabao", "liquido", "liq", "lava"},
             "detergente": {"detergente", "limpol", "ype", "ipe", "minuano"},
             "fralda descartavel": {"fralda", "pampers", "huggies"},
-            "pao frances": {"pao", "carioquinha", "carioca", "cariocas"},
+            "pao frances": {"pao", "carioquinha", "cariocas"},
             "leite integral": {"leite", "integral", "desnatado", "semidesnatado"},
             "macarrao": {"macarrao", "miojo", "lamen", "espaguete", "penne", "parafuso"},
             "carne bovina": {"carne", "bovina", "boi", "picadinho", "moida"},
             "frango abatido": {"frango", "galinha", "coxa", "sobrecoxa", "asa"},
             "hortifruti": {"banana", "maca", "laranja", "tomate", "cebola", "batata", "limao", "abacaxi"},
         }
+
+        best_intent = ""
+        best_hits = 0
         for intent, keywords in intent_map.items():
-            if token_set & keywords:
-                if intent == "pirulito":
-                    return "pirulito pop"
-                if intent == "hortifruti":
-                    # Usa o primeiro termo de hortifruti citado para manter precisão
-                    for tk in tokens:
-                        if tk in keywords:
-                            return tk
-                return intent
+            hits = len(token_set & keywords)
+            if hits > best_hits:
+                best_hits = hits
+                best_intent = intent
+
+        if best_intent:
+            # Evita gatilho por 1 token genérico em frases maiores (ex.: "feijao carioca" -> não virar "pao frances").
+            if len(token_set) >= 2 and best_hits < 2:
+                return ""
+            if best_intent == "pirulito":
+                return "pirulito pop"
+            if best_intent == "hortifruti":
+                # Usa o primeiro termo de hortifruti citado para manter precisão
+                for tk in tokens:
+                    if tk in intent_map["hortifruti"]:
+                        return tk
+            return best_intent
         return ""
 
     def _simplify_query(raw: str) -> str:
@@ -1162,7 +1183,7 @@ def vendedor_node(state: AgentState) -> dict:
     # Configuração
     config = {
         "configurable": {"thread_id": state["phone"]},
-        "recursion_limit": 30
+        "recursion_limit": 20
     }
     
     result = agent.invoke({"messages": state["messages"]}, config)
