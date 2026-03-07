@@ -205,6 +205,8 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             return False, ""
         if (("massa fina" in q_norm) or ("massafina" in q_norm) or ("sovado" in q_norm)) and ("sovado" in top_name):
             return False, ""
+        if (("mao de vaca" in q_norm) or ("ossobuco" in q_norm) or ("ossubuco" in q_norm)) and (("ossobuco" in top_name) or ("ossubuco" in top_name)):
+            return False, ""
         if ("absorvente" in q_norm or "abs" in q_norm):
             wants_noturno = ("noturno" in q_norm or "noturna" in q_norm)
             if wants_noturno and (("abs" in top_name or "absorv" in top_name) and ("noturn" in top_name or " not " in f" {top_name} ")):
@@ -236,6 +238,8 @@ def busca_produto_tool(telefone: str, query: str) -> str:
             if "carne" in token_set or "boi" in token_set or "bovina" in token_set:
                 return "strogonoff kg"
             return "strogonoff kg"
+        if (("mao" in token_set and "vaca" in token_set) or "ossobuco" in token_set or "ossubuco" in token_set):
+            return "ossobuco kg"
         if "absorvente" in token_set or "abs" in token_set:
             if "noturno" in token_set or "noturna" in token_set:
                 return "abs noturno"
@@ -393,6 +397,11 @@ def busca_produto_tool(telefone: str, query: str) -> str:
                     semantic += 0.35
                 elif "pao frances" in name or "frances" in name:
                     semantic -= 0.10
+            if (("mao" in q_tokens and "vaca" in q_tokens) or "ossobuco" in q_tokens or "ossubuco" in q_tokens):
+                if "ossobuco" in name or "ossubuco" in name:
+                    semantic += 0.35
+                elif "bife" in name or "musculo" in name:
+                    semantic += 0.08
             if "absorvente" in q_tokens or "abs" in q_tokens:
                 if "abs" in name or "absorv" in name:
                     semantic += 0.20
